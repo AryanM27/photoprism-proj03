@@ -1,4 +1,6 @@
 # infra/chameleon/provision_vm.py
+# Targets KVM@TACC because this site provides virtualised Nova instances
+# (m1.xlarge flavors) with floating IPs, which are not available on bare-metal CHI sites.
 from chi import server, context, lease, network
 import chi, os, datetime
 
@@ -11,6 +13,7 @@ project = "proj03"  # project naming convention on Chameleon
 l = lease.Lease(f"lease-data-{project}-{username}", duration=datetime.timedelta(hours=8))
 l.add_flavor_reservation(id=chi.server.get_flavor_id("m1.xlarge"), amount=1)
 l.submit(idempotent=True)
+l.wait()  # wait for lease to reach ACTIVE state before provisioning server
 
 s = server.Server(
     f"node-data-{project}-{username}",
@@ -20,7 +23,7 @@ s = server.Server(
 s.submit(idempotent=True)
 s.associate_floating_ip()
 s.refresh()
-s.show(type="widget")
+s.show(type="text")
 
 security_groups = [
     {"name": "allow-ssh",   "port": 22,   "description": "SSH"},

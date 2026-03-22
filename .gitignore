@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data (tracked by DVC, not git)
+Data/data/raw/
+Data/data/interim/
+Data/data/processed/
+Data/data/manifests/
+Data/data/feedback/
+
+# DVC internal
+.dvc/tmp/
+.dvc/cache/
+
+# Docker secrets
+Data/docker/.env
+
+# Secrets
+Data/infra/secrets/
+!Data/infra/secrets/.gitkeep
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project-specific: keep out of version control
+Data/Context/
+Data/docs/
