@@ -16,7 +16,6 @@ env/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
 
 # Data (tracked by DVC, not git)
 Data/data/raw/
@@ -47,6 +46,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+.claude/
 
 # Project-specific: keep out of version control
 Data/Context/

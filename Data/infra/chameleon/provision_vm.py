@@ -1,6 +1,7 @@
 # infra/chameleon/provision_vm.py
-# Targets KVM@TACC because this site provides virtualised Nova instances
-# (m1.xlarge flavors) with floating IPs, which are not available on bare-metal CHI sites.
+# Targets KVM@TACC — virtualised Nova instances (m1.xlarge + floating IPs).
+# Run AFTER provision_block.py so the Cinder volume exists to attach.
+# Resource names use proj03 as suffix per course naming policy.
 from chi import server, context, lease, network
 import chi, os, datetime
 
@@ -8,21 +9,21 @@ context.version = "1.0"
 context.choose_project()
 context.choose_site(default="KVM@TACC")
 username = os.getenv("USER")
-project = "proj03"  # project naming convention on Chameleon
+project = "proj03"
 
 print(f"User: {username} | Project: {project} | Site: KVM@TACC")
 
-# Reserve an m1.xlarge VM for 8 hours
-l = lease.Lease(f"lease-data-{project}-{username}", duration=datetime.timedelta(hours=8))
+# --- Lease ---
+l = lease.Lease(f"lease-{username}-{project}", duration=datetime.timedelta(hours=8))
 l.add_flavor_reservation(id=chi.server.get_flavor_id("m1.xlarge"), amount=1)
 l.submit(idempotent=True)
 print("Lease submitted. Waiting for ACTIVE state...")
 l.wait()
 print(f"Lease '{l.name}' is ACTIVE.")
 
-# Launch the VM instance
+# --- Server ---
 s = server.Server(
-    f"node-data-{project}-{username}",
+    f"node-{username}-{project}",
     image_name="CC-Ubuntu24.04",
     flavor_name=l.get_reserved_flavors()[0].name,
 )
@@ -31,7 +32,7 @@ s.associate_floating_ip()
 s.refresh()
 s.show(type="text")
 
-# Attach security groups for all data stack services
+# --- Security groups ---
 security_groups = [
     {"name": "allow-ssh",   "port": 22,   "description": "Enable SSH traffic on TCP port 22"},
     {"name": "allow-5432",  "port": 5432, "description": "Enable TCP port 5432 (Postgres)"},
@@ -56,7 +57,20 @@ for sg in security_groups:
 
 print(f"Updated security groups: {[sg['name'] for sg in security_groups]}")
 
-# Extract floating IP from addresses (s.floating_ip attribute does not exist)
+# --- Attach block storage volume (created by provision_block.py) ---
+cinder_client = chi.clients.cinder()
+volumes = [v for v in cinder_client.volumes.list() if v.name == f"block-{username}-{project}"]
+if not volumes:
+    raise RuntimeError(
+        f"Block volume 'block-{username}-{project}' not found. "
+        "Run provision_block.py first."
+    )
+volume = volumes[0]
+s.attach_volume(volume.id)
+print(f"Block volume '{volume.name}' attached.")
+
+# --- Floating IP ---
+s.refresh()
 floating_ip = next(
     addr["addr"]
     for addrs in s.addresses.values()
@@ -65,3 +79,10 @@ floating_ip = next(
 )
 print(f"\nVM ready. Floating IP: {floating_ip}")
 print(f"SSH: ssh cc@{floating_ip}")
+print("\nIf this is the first time attaching the volume, run on the VM:")
+print("  sudo parted -s /dev/vdb mklabel gpt && sudo parted -s /dev/vdb mkpart primary ext4 0% 100%")
+print("  sudo mkfs.ext4 /dev/vdb1")
+print("  sudo mkdir -p /mnt/block && sudo mount /dev/vdb1 /mnt/block")
+print("  sudo chown -R cc /mnt/block && sudo chgrp -R cc /mnt/block")
+print("For subsequent attaches (volume already formatted):")
+print("  sudo mkdir -p /mnt/block && sudo mount /dev/vdb1 /mnt/block")
