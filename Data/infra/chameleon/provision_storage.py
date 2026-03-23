@@ -1,18 +1,28 @@
 # infra/chameleon/provision_storage.py
 # Targets CHI@TACC because Swift object storage (OpenStack) is only available
 # at the bare-metal CHI sites, not on the KVM@TACC virtualised site.
-import chi, os
+from chi import context
+import chi, swiftclient
 
-chi.use_site("CHI@TACC")
-chi.set("project_name", os.getenv("OS_PROJECT_NAME"))
+context.version = "1.0"
+context.choose_project()
+context.choose_site(default="CHI@TACC")
 
+print("Site: CHI@TACC")
+
+# Connect to Swift using pre-authenticated credentials from the session
+os_conn = chi.clients.connection()
+token = os_conn.authorize()
+storage_url = os_conn.object_store.get_endpoint()
+
+swift_conn = swiftclient.Connection(
+    preauthurl=storage_url,
+    preauthtoken=token,
+    retries=5,
+)
+
+# Create the object storage container (idempotent — put_container returns 202 if it already exists)
 container_name = "photoprism-data"
-try:
-    chi.swift.create_container(container_name)
-    print(f"Object storage container created: {container_name}")
-except Exception as e:
-    if "409" in str(e) or "already exists" in str(e).lower():
-        print(f"Container '{container_name}' already exists — skipping creation.")
-    else:
-        raise
+swift_conn.put_container(container_name)
+print(f"Container '{container_name}' is ready.")
 print("Browse at: https://chi.tacc.chameleoncloud.org/project/containers")
