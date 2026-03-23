@@ -1,0 +1,30 @@
+experiment_name: semantic_openclip_vitb32_baseline
+
+task: semantic_retrieval
+
+dataset:
+  manifest_path: Training/data/manifests/semantic_sample.jsonl
+  split: val
+
+model:
+  family: openclip
+  variant: ViT-B-32
+  pretrained: true
+  tier: 1
+  freeze_backbone: true
+
+evaluation:
+  top_k: [1, 5, 10]
+  metrics:
+    - recall_at_k
+    - map
+
+runtime:
+  device: auto
+  seed: 42
+
+storage:
+  backend: local
+
+output:
+  artifact_dir: Training/artifacts/semantic/openclip_vitb32_baseline
