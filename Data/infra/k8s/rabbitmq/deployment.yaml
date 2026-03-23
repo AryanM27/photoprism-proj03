@@ -22,8 +22,9 @@ spec:
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "check_port_connectivity"]
-            initialDelaySeconds: 20
+            initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 15
           resources:
             requests:
               cpu: 100m
