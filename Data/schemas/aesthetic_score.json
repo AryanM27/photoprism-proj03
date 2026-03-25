@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["image_id", "aesthetic_score", "model_version"],
+  "properties": {
+    "image_id":        {"type": "string"},
+    "aesthetic_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "model_version":   {"type": "string"},
+    "scored_at":       {"type": "string", "format": "date-time"}
+  }
+}

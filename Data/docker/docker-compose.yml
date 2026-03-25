@@ -72,3 +72,25 @@ services:
       minio:
         condition: service_started
     restart: unless-stopped
+
+  photoprism:
+    image: photoprism/photoprism:latest
+    container_name: photoprism
+    env_file: .env
+    environment:
+      PHOTOPRISM_DATABASE_DRIVER: postgres
+      PHOTOPRISM_DATABASE_SERVER: postgres:5432
+      PHOTOPRISM_DATABASE_NAME: photoprism
+      PHOTOPRISM_DATABASE_USER: ${POSTGRES_USER}
+      PHOTOPRISM_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      PHOTOPRISM_ADMIN_PASSWORD: ${PHOTOPRISM_ADMIN_PASSWORD}
+      PHOTOPRISM_SITE_URL: http://localhost:2342/
+    ports:
+      - "2342:2342"
+    volumes:
+      - /mnt/block/photoprism/storage:/photoprism/storage
+      - /mnt/block/photoprism/originals:/photoprism/originals
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped

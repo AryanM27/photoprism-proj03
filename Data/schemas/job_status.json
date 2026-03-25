@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["job_id", "image_id", "job_type", "status"],
+  "properties": {
+    "job_id":    {"type": "string"},
+    "image_id":  {"type": "string"},
+    "job_type":  {"type": "string", "enum": ["ingestion", "validation", "backfill"]},
+    "status":    {"type": "string", "enum": ["queued", "running", "done", "failed"]},
+    "created_at":{"type": "string", "format": "date-time"},
+    "updated_at":{"type": "string", "format": "date-time"}
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["event_id", "image_id", "clicked", "model_version"],
+  "properties": {
+    "event_id":        {"type": "string"},
+    "user_id":         {"type": "string"},
+    "query_id":        {"type": "string"},
+    "image_id":        {"type": "string"},
+    "shown_rank":      {"type": "integer"},
+    "clicked":         {"type": "boolean"},
+    "favorited":       {"type": "boolean"},
+    "semantic_score":  {"type": "number", "minimum": 0, "maximum": 1},
+    "aesthetic_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "model_version":   {"type": "string"},
+    "timestamp":       {"type": "string", "format": "date-time"}
+  }
+}

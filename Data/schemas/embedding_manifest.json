@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["snapshot_id", "version_tag", "manifest_path", "record_count"],
+  "properties": {
+    "snapshot_id":   {"type": "string"},
+    "version_tag":   {"type": "string"},
+    "manifest_path": {"type": "string"},
+    "record_count":  {"type": "integer", "minimum": 0},
+    "created_at":    {"type": "string", "format": "date-time"}
+  }
+}

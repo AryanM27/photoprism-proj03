@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["image_id", "image_uri", "storage_path", "status", "created_at"],
+  "properties": {
+    "image_id":       {"type": "string"},
+    "image_uri":      {"type": "string", "description": "S3-compatible URI e.g. s3://photoprism-proj03/images/img.jpg"},
+    "storage_path":   {"type": "string"},
+    "status":         {"type": "string", "enum": ["pending", "validated", "failed"]},
+    "source_dataset": {"type": "string", "enum": ["yfcc", "ava_subset"]},
+    "split":          {"type": "string", "enum": ["train", "val"]},
+    "created_at":     {"type": "string", "format": "date-time"}
+  }
+}

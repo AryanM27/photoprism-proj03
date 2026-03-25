@@ -7,7 +7,7 @@
 ## 1. Data Repositories
 
 ### 1.1 Object Storage (MinIO / Chameleon Swift)
-**Bucket:** `photoprism-data`
+**Bucket:** `photoprism-proj03`
 
 | Path prefix        | Contents                          | Written by              | When                        |
 |--------------------|-----------------------------------|-------------------------|-----------------------------|
@@ -25,27 +25,32 @@
 **Database:** `photoprism`
 
 #### Table: `images`
-| Column        | Type      | Notes                                      |
-|---------------|-----------|--------------------------------------------|
-| image_id      | VARCHAR PK| MD5 hash of original file path             |
-| storage_path  | VARCHAR   | Object storage key (`raw/<id>.<ext>`)      |
-| status        | VARCHAR   | pending → validated / failed               |
-| created_at    | TIMESTAMP |                                            |
-| updated_at    | TIMESTAMP |                                            |
+| Column         | Type      | Notes                                                              |
+|----------------|-----------|--------------------------------------------------------------------|
+| image_id       | VARCHAR PK| MD5 hash of original file path                                     |
+| image_uri      | VARCHAR   | S3-compatible URI (`s3://photoprism-proj03/raw/<id>.<ext>`)        |
+| storage_path   | VARCHAR   | Object storage key (`raw/<id>.<ext>`)                              |
+| source_dataset | VARCHAR   | `yfcc` or `ava_subset`                                             |
+| split          | VARCHAR   | `train` or `val` — deterministic: `int(image_id[-1], 16) < 4` → val |
+| status         | VARCHAR   | pending → validated / failed                                       |
+| created_at     | TIMESTAMP |                                                                    |
+| updated_at     | TIMESTAMP |                                                                    |
 
 **Written by:** `ingestion_worker` (insert), `validation_worker` (update status)
 
 #### Table: `image_metadata`
-| Column        | Type      | Notes                        |
-|---------------|-----------|------------------------------|
-| image_id      | VARCHAR PK| FK → images                  |
-| width         | INT       |                              |
-| height        | INT       |                              |
-| format        | VARCHAR   | JPEG / PNG / WEBP            |
-| exif_json     | TEXT      | Raw EXIF as JSON string      |
-| tags          | TEXT      | Comma-separated normalized   |
-| captured_at   | TIMESTAMP | From EXIF DateTimeOriginal   |
-| normalized_at | TIMESTAMP |                              |
+| Column         | Type      | Notes                                          |
+|----------------|-----------|------------------------------------------------|
+| image_id       | VARCHAR PK| FK → images                                    |
+| text           | TEXT      | Caption / description for semantic search      |
+| source_dataset | VARCHAR   | `yfcc` or `ava_subset`                         |
+| width          | INT       |                                                |
+| height         | INT       |                                                |
+| format         | VARCHAR   | JPEG / PNG / WEBP                              |
+| exif_json      | TEXT      | Raw EXIF as JSON string                        |
+| tags           | TEXT      | Comma-separated normalized                     |
+| captured_at    | TIMESTAMP | From EXIF DateTimeOriginal                     |
+| normalized_at  | TIMESTAMP |                                                |
 
 **Written by:** `validation_worker` after normalization
 
@@ -87,7 +92,7 @@
 | version_tag   | VARCHAR   | DVC git tag (e.g. `v1.0`)      |
 | manifest_path | VARCHAR   | S3 key to JSONL manifest       |
 | record_count   | INT       |                                    |
-| split_strategy | VARCHAR   | e.g. hash_hex_75_25                |
+| split_strategy | VARCHAR   | e.g. `hash_hex_75_25` (int(id[-1],16) < 4 → val) |
 | created_at     | TIMESTAMP |                                    |
 
 **Written by:** `manifest_builder` after each DVC snapshot
@@ -104,6 +109,30 @@ Three durable queues:
 | `ingestion` | scanner CLI           | `ingestion_worker`      | `{"message_id": str, "timestamp": ISO8601, "image_id": str, "file_path": str}` |
 | `validation`| `ingestion_worker`    | `validation_worker`     | `{"message_id": str, "timestamp": ISO8601, "image_id": str, "storage_path": str}` |
 | `backfill`  | `backfill/pipeline.py`| `backfill_worker`       | `{"message_id": str, "timestamp": ISO8601, "image_id": str, "model_version": str}` |
+
+---
+
+### 1.4 Training Manifest Contract
+
+Manifest files are JSONL, versioned with DVC, stored at `s3://photoprism-proj03/manifests/`.
+
+**Semantic manifest** (`semantic_<split>_<version>.jsonl`):
+| Field          | Type   | Notes                              |
+|----------------|--------|------------------------------------|
+| image_id       | string |                                    |
+| image_uri      | string | `s3://photoprism-proj03/raw/...`   |
+| text           | string | Caption / description              |
+| split          | string | `train` or `val`                   |
+| source_dataset | string | `yfcc` or `ava_subset`             |
+
+**Aesthetic manifest** (`aesthetic_<split>_<version>.jsonl`):
+| Field          | Type   | Notes                              |
+|----------------|--------|------------------------------------|
+| image_id       | string |                                    |
+| image_uri      | string | `s3://photoprism-proj03/raw/...`   |
+| aesthetic_score| float  | 0–10 scale                         |
+| split          | string | `train` or `val`                   |
+| source_dataset | string | `yfcc` or `ava_subset`             |
 
 ---
 
