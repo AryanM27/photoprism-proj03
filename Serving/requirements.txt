@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+open-clip-torch
+torch
+torchvision
+pillow
+qdrant-client
+prometheus-fastapi-instrumentator
+python-multipart
+pydantic
