@@ -73,6 +73,16 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
   photoprism:
     image: photoprism/photoprism:latest
     container_name: photoprism
