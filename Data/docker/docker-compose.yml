@@ -101,7 +101,7 @@ services:
       MINIO_USER: ${MINIO_USER}
       MINIO_PASSWORD: ${MINIO_PASSWORD}
     volumes:
-      - /mnt/block/photoprism/originals:/data/originals:ro
+      - /mnt/block/photoprism/originals:/data/originals
     depends_on:
       postgres:
         condition: service_healthy
