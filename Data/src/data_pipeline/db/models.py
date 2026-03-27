@@ -11,7 +11,7 @@ class Image(Base):
     image_uri      = Column(String, nullable=False)  # s3://photoprism-proj03/images/...
     storage_path   = Column(String, nullable=False)
     source_dataset = Column(String)                  # yfcc | ava_subset
-    split          = Column(String)                  # train | val (deterministic: int(image_id[-1], 16) < 12)
+    split          = Column(String)                  # train | val (deterministic: int(image_id[-1], 16) < 4 → val ~25%)
     status         = Column(String, default="pending")
     created_at     = Column(DateTime, default=datetime.utcnow)
     updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps for psycopg2 + Pillow (used by validation)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.worker.txt .
+RUN pip install --no-cache-dir -r requirements.worker.txt
+
+COPY src/ ./src/
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Default: start ingestion + validation workers
+# Override CMD in docker-compose to run a specific queue
+CMD ["celery", "-A", "src.data_pipeline.workers.celery_app", "worker", \
+     "--loglevel=info", "--queues=ingestion,validation", "--concurrency=2"]

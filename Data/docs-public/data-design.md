@@ -1,8 +1,5 @@
 # Data Design Document
-
-**Version:** 1.0
-**Date:** 2026-03-21
-**Author:** Data Lead / DevOps
+**Author:** Aryan Mamidwar
 
 ## 1. Data Repositories
 
