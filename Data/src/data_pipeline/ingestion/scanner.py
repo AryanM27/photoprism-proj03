@@ -17,7 +17,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from src.data_pipeline.ingestion.publisher import Publisher
+from src.data_pipeline.workers.celery_app import app
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +35,17 @@ def compute_split(image_id: str) -> str:
 
 
 def scan(source_dir: str, source_dataset: str, batch_size: int = 100) -> int:
-    """Scan source_dir recursively and publish one ingestion event per image.
+    """Scan source_dir recursively and dispatch one Celery ingestion task per image.
 
-    Returns the total number of events published.
+    Returns the total number of tasks dispatched.
     """
     source_path = Path(source_dir)
     if not source_path.exists():
         raise FileNotFoundError(f"Source directory not found: {source_dir}")
 
-    publisher = Publisher()
+    # Import here to avoid circular import at module load time
+    from src.data_pipeline.workers.ingestion_worker import process_ingestion_event
+
     count = 0
 
     for file_path in source_path.rglob("*"):
@@ -62,14 +64,13 @@ def scan(source_dir: str, source_dataset: str, batch_size: int = 100) -> int:
             "split": split,
         }
 
-        publisher.publish_ingestion(event)
+        process_ingestion_event.delay(event)
         count += 1
 
         if count % batch_size == 0:
             logger.info(f"Scanned {count} images...")
 
-    publisher.close()
-    logger.info(f"Scan complete. Published {count} ingestion events.")
+    logger.info(f"Scan complete. Dispatched {count} ingestion tasks.")
     return count
 
 
