@@ -11,7 +11,6 @@ import logging
 
 from src.data_pipeline.workers.celery_app import app
 from src.data_pipeline.ingestion.uploader import upload_image
-from src.data_pipeline.ingestion.publisher import Publisher
 from src.data_pipeline.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -42,9 +41,12 @@ def process_ingestion_event(self, event: dict) -> dict:
         finally:
             db.close()
 
-        # Forward to validation queue
-        with Publisher() as pub:
-            pub.publish_validation(result["image_id"], result["storage_path"])
+        # Forward to validation queue via Celery
+        from src.data_pipeline.workers.validation_worker import process_validation_event
+        process_validation_event.delay({
+            "image_id": result["image_id"],
+            "storage_path": result["storage_path"],
+        })
 
         logger.info(f"[ingestion] Done {image_id} → forwarded to validation queue")
         return result
