@@ -12,9 +12,11 @@ model:
   pretrained: true
   tier: 1
   freeze_backbone: true
+  use_mock_inference: true #false for actual runs
+  embedding_dim: 512
 
 evaluation:
-  top_k: [1, 5, 10]
+  top_k: [1] #make it [1,5,10] for actual runs
   metrics:
     - recall_at_k
     - map

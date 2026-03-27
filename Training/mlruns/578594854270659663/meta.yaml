@@ -1,0 +1,7 @@
+artifact_location: file:///C:/Users/dell/Desktop/photoprism-proj03/Training/mlruns/578594854270659663
+creation_time: 1774462057429
+experiment_id: '578594854270659663'
+last_update_time: 1774462057429
+lifecycle_stage: active
+name: semantic_openclip_vitb32_baseline
+workspace: default
