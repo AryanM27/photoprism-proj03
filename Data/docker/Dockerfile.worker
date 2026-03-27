@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtiff-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.worker.txt .
+COPY docker/requirements.worker.txt .
 RUN pip install --no-cache-dir -r requirements.worker.txt
 
 COPY src/ ./src/
