@@ -1,6 +1,0 @@
-best_val_loss: 41.372840881347656
-device: cpu
-mlflow_tracking_uri: file:./Training/mlruns
-checkpoint_dir: Training\artifacts\checkpoints\aesthetic\linear_head\aesthetic-linear-v1
-resumed_from_checkpoint: False
-epochs_completed_in_this_run: 5

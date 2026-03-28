@@ -1,6 +1,0 @@
-{
-  "recall_at_1": 0.0,
-  "mAP": 0.5,
-  "device": "mock-cpu",
-  "num_samples": 2
-}

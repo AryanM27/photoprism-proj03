@@ -1,5 +1,0 @@
-best_val_contrastive_loss: 0.6928048133850098
-device: cpu
-mlflow_tracking_uri: file:./Training/mlruns
-checkpoint_dir: Training\artifacts\checkpoints\semantic\semantic_baseline\semantic-baseline-v1
-resumed_from_checkpoint: False

@@ -51,3 +51,9 @@ Thumbs.db
 # Project-specific: keep out of version control
 Data/Context/
 Data/docs/
+
+#Local training artifcats
+Training/mlruns/
+Training/artifacts/
+Training/_pycache_/
+Training/src/**/_pycache_/
