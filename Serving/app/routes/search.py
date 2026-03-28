@@ -10,20 +10,36 @@ router = APIRouter()
 class TextSearchRequest(BaseModel):
     query: str
     top_k: int = 10
+    rerank: bool = False  # set True to re-rank by aesthetic score
 
 
 class SearchResult(BaseModel):
     image_id: str
     score: float
+    aesthetic_score: float | None = None
     payload: dict
 
 
 @router.post("/search", response_model=list[SearchResult])
 def search(req: TextSearchRequest, request: Request):
     embedder = request.app.state.embedder
+    ranker = request.app.state.ranker
     client = get_client()
 
     query_embedding = embedder.embed_text(req.query)
     results = qdrant.search_photos(client, query_embedding, top_k=req.top_k)
+
+    if req.rerank and results:
+        # Fetch image bytes from payload paths (if available)
+        image_bytes_map = {}
+        for item in results:
+            path = item["payload"].get("filepath") or item["payload"].get("filename")
+            if path:
+                try:
+                    with open(path, "rb") as f:
+                        image_bytes_map[item["image_id"]] = f.read()
+                except (FileNotFoundError, OSError):
+                    pass
+        results = ranker.rerank(results, image_bytes_map)
 
     return results
