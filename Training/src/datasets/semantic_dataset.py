@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from PIL import Image
 from torch.utils.data import Dataset
@@ -9,8 +9,16 @@ from src.datasets.transforms import get_eval_transforms
 
 
 class SemanticRetrievalDataset(Dataset):
-    def __init__(self, manifest_path: str, image_size: int = 224):
-        self.records: List[Dict] = load_and_validate_semantic_manifest(manifest_path)
+    def __init__(self, manifest_path: str, image_size: int = 224, split: Optional[str] = None):
+        records: List[Dict] = load_and_validate_semantic_manifest(manifest_path)
+
+        if split is not None:
+            records = [record for record in records if record["split"] == split]
+
+        if not records:
+            raise ValueError(f"No semantic records found for split={split}")
+
+        self.records = records
         self.transforms = get_eval_transforms(image_size=image_size)
 
     def __len__(self) -> int:

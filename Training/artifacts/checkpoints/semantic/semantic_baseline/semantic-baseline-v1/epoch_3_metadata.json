@@ -1,0 +1,12 @@
+{
+  "saved_at": "2026-03-28T21:53:37Z",
+  "task": "semantic",
+  "model_family": "semantic_baseline",
+  "model_version": "semantic-baseline-v1",
+  "epoch": 3,
+  "global_step": 3,
+  "metric_name": "val_contrastive_loss",
+  "metric_value": 0.6928048133850098,
+  "dataset_version": "semantic-sample-v1",
+  "config_path": "Training/configs/semantic/semantic_train_baseline.yaml"
+}

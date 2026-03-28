@@ -1,0 +1,30 @@
+experiment_name: semantic_train_baseline
+
+task: semantic
+
+dataset:
+  manifest_path: Training/data/manifests/semantic_train_sample.jsonl
+  dataset_version: semantic-sample-v1
+
+model:
+  family: semantic_baseline
+  version: semantic-baseline-v1
+  image_size: 224
+  embedding_dim: 128
+
+training:
+  batch_size: 2
+  epochs: 3
+  learning_rate: 0.001
+  resume: auto
+
+runtime:
+  device: auto
+  seed: 42
+
+checkpoint:
+  root_dir: Training/artifacts/checkpoints
+
+output:
+  artifact_dir: Training/artifacts/semantic/semantic_train_baseline
+  save_history: true

@@ -1,0 +1,4 @@
+best_val_loss: 42.050987243652344
+device: cpu
+mlflow_tracking_uri: file:./Training/mlruns
+checkpoint_dir: Training\artifacts\checkpoints\aesthetic\linear_head\aesthetic-linear-v1

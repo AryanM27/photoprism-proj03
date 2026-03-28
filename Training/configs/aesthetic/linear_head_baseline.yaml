@@ -1,0 +1,29 @@
+experiment_name: aesthetic_linear_head_baseline
+
+task: aesthetic
+
+dataset:
+  manifest_path: Training/data/manifests/aesthetic_sample.jsonl
+  dataset_version: aesthetic-sample-v1
+
+model:
+  family: linear_head
+  version: aesthetic-linear-v1
+  image_size: 224
+
+training:
+  batch_size: 2
+  epochs: 5
+  learning_rate: 0.001
+  resume: auto
+
+runtime:
+  device: auto
+  seed: 42
+
+checkpoint:
+  root_dir: Training/artifacts/checkpoints
+
+output:
+  artifact_dir: Training/artifacts/aesthetic/linear_head_baseline
+  save_history: true
