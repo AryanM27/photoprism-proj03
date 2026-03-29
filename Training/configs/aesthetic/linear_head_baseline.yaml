@@ -3,7 +3,7 @@ experiment_name: aesthetic_linear_head_baseline
 task: aesthetic
 
 dataset:
-  manifest_path: Training/data/manifests/aesthetic_sample.jsonl
+  manifest_path: data/manifests/aesthetic_sample.jsonl #add Training directory in front for local
   dataset_version: aesthetic-sample-v1
 
 model:
@@ -22,8 +22,8 @@ runtime:
   seed: 42
 
 checkpoint:
-  root_dir: Training/artifacts/checkpoints
+  root_dir: artifacts/checkpoints #add Training directory in front for local
 
 output:
-  artifact_dir: Training/artifacts/aesthetic/linear_head_baseline
+  artifact_dir: artifacts/aesthetic/linear_head_baseline #add Training directory in front for local
   save_history: true

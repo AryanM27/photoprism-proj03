@@ -3,7 +3,7 @@ experiment_name: semantic_openclip_vitb32_baseline
 task: semantic_retrieval
 
 dataset:
-  manifest_path: Training/data/manifests/semantic_sample.jsonl
+  manifest_path: data/manifests/semantic_sample.jsonl #add Training directory in front for local
   split: val
 
 model:
@@ -29,4 +29,4 @@ storage:
   backend: local
 
 output:
-  artifact_dir: Training/artifacts/semantic/openclip_vitb32_baseline
+  artifact_dir: artifacts/semantic/openclip_vitb32_baseline #add Training directory in front for local

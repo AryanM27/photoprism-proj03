@@ -1,4 +1,4 @@
-{"image_id": "1", "image_path": "Training/data/sample_images/img1.jpg", "text": "a dog running", "split": "train", "source_dataset": "sample"}
-{"image_id": "2", "image_path": "Training/data/sample_images/img2.jpg", "text": "a beach sunset", "split": "train", "source_dataset": "sample"}
-{"image_id": "3", "image_path": "Training/data/sample_images/img1.jpg", "text": "a dog outside", "split": "val", "source_dataset": "sample"}
-{"image_id": "4", "image_path": "Training/data/sample_images/img2.jpg", "text": "a sunset by the sea", "split": "val", "source_dataset": "sample"}
+{"image_id": "1", "image_path": "data/sample_images/img1.jpg", "text": "a dog running", "split": "train", "source_dataset": "sample"}
+{"image_id": "2", "image_path": "data/sample_images/img2.jpg", "text": "a beach sunset", "split": "train", "source_dataset": "sample"}
+{"image_id": "3", "image_path": "data/sample_images/img1.jpg", "text": "a dog outside", "split": "val", "source_dataset": "sample"}
+{"image_id": "4", "image_path": "data/sample_images/img2.jpg", "text": "a sunset by the sea", "split": "val", "source_dataset": "sample"}

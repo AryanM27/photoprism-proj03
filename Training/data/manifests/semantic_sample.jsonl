@@ -1,2 +1,2 @@
-{"image_id": "1", "image_path": "Training/data/sample_images/img1.jpg", "text": "a dog running", "split": "val", "source_dataset": "sample"}
-{"image_id": "2", "image_path": "Training/data/sample_images/img2.jpg", "text": "a beach sunset", "split": "val", "source_dataset": "sample"}
+{"image_id": "1", "image_path": "data/sample_images/img1.jpg", "text": "a dog running", "split": "val", "source_dataset": "sample"}
+{"image_id": "2", "image_path": "data/sample_images/img2.jpg", "text": "a beach sunset", "split": "val", "source_dataset": "sample"}
