@@ -27,3 +27,6 @@ checkpoint:
 output:
   artifact_dir: artifacts/aesthetic/linear_head_baseline #add Training directory in front for local
   save_history: true
+
+storage:
+  backend: local

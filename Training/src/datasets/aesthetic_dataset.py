@@ -6,6 +6,8 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 from src.datasets.transforms import get_eval_transforms
+from src.common.paths import resolve_training_path
+
 
 
 REQUIRED_AESTHETIC_FIELDS = {
@@ -37,11 +39,18 @@ def load_and_validate_aesthetic_manifest(manifest_path: str) -> List[Dict]:
                     f"Record {line_number} missing fields: {sorted(missing)}"
                 )
 
-            image_path = Path(record["image_path"])
-            if not image_path.exists():
+            # image_path = Path(record["image_path"])
+            # if not image_path.exists():
+            #     raise FileNotFoundError(
+            #         f"Record {line_number} points to missing image: {image_path}"
+            #     )
+            resolved_image_path = Path(resolve_training_path(record["image_path"]))
+            if not resolved_image_path.exists():
                 raise FileNotFoundError(
-                    f"Record {line_number} points to missing image: {image_path}"
+                    f"Record {line_number} points to missing image: {record['image_path']}"
                 )
+
+            record["image_path"] = str(resolved_image_path)
 
             if record["split"] not in {"train", "val", "test"}:
                 raise ValueError(

@@ -11,3 +11,5 @@ __pycache__
 
 Training/mlruns
 Training/artifacts
+Training/mlruns_old
+Training/artifacts_old

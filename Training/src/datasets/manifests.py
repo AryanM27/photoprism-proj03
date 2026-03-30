@@ -2,6 +2,9 @@ import json
 from pathlib import Path
 from typing import List, Dict
 
+from src.common.paths import resolve_training_path
+
+
 
 REQUIRED_SEMANTIC_FIELDS = {
     "image_id",
@@ -50,11 +53,19 @@ def validate_semantic_manifest(records: List[Dict]) -> None:
                 f"Record {idx} is missing required fields: {sorted(missing_fields)}"
             )
 
-        image_path = Path(record["image_path"])
-        if not image_path.exists():
+        # image_path = Path(record["image_path"])
+        # if not image_path.exists():
+        #     raise FileNotFoundError(
+        #         f"Record {idx} points to missing image file: {image_path}"
+        #     )
+        
+        resolved_image_path = Path(resolve_training_path(record["image_path"]))
+        if not resolved_image_path.exists():
             raise FileNotFoundError(
-                f"Record {idx} points to missing image file: {image_path}"
+                f"Record {idx} points to missing image file: {record['image_path']}"
             )
+
+        record["image_path"] = str(resolved_image_path)
 
         if not isinstance(record["text"], str) or not record["text"].strip():
             raise ValueError(f"Record {idx} has empty or invalid text field")

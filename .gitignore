@@ -55,5 +55,7 @@ Data/docs/
 #Local training artifcats
 Training/mlruns/
 Training/artifacts/
+Training/mlruns_old/
+Training/artifacts_old/
 Training/_pycache_/
 Training/src/**/_pycache_/

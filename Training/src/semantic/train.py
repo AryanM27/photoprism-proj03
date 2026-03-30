@@ -286,6 +286,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import argparse
 import json
 from pathlib import Path
+from src.storage.artifact_io import save_history_artifact, save_summary_artifact
 
 import mlflow
 import torch
@@ -369,14 +370,14 @@ def run_one_epoch(model, loader, optimizer, device, train: bool):
     return {"contrastive_loss": mean_loss}
 
 
-def save_history(history: list, artifact_dir: Path) -> Path:
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    history_file = artifact_dir / "history.json"
+# def save_history(history: list, artifact_dir: Path) -> Path:
+#     artifact_dir.mkdir(parents=True, exist_ok=True)
+#     history_file = artifact_dir / "history.json"
 
-    with history_file.open("w", encoding="utf-8") as f:
-        json.dump(history, f, indent=2)
+#     with history_file.open("w", encoding="utf-8") as f:
+#         json.dump(history, f, indent=2)
 
-    return history_file
+#     return history_file
 
 
 def train_semantic_baseline(config_path: str) -> dict:
@@ -450,7 +451,9 @@ def train_semantic_baseline(config_path: str) -> dict:
     artifact_dir = Path(config["output"]["artifact_dir"])
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    tracking_uri = configure_mlflow()
+    # tracking_uri = configure_mlflow()
+    tracking_uri = configure_mlflow(config)
+
 
     with start_run(experiment_name=config["experiment_name"]):
         log_config_params(config)
@@ -466,12 +469,16 @@ def train_semantic_baseline(config_path: str) -> dict:
                 "message": "No training run because checkpoint is already beyond configured epochs.",
             }
 
-            summary_file = artifact_dir / "training_summary.txt"
-            with summary_file.open("w", encoding="utf-8") as f:
-                for key, value in summary.items():
-                    f.write(f"{key}: {value}\n")
+            # summary_file = artifact_dir / "training_summary.txt"
+            # with summary_file.open("w", encoding="utf-8") as f:
+            #     for key, value in summary.items():
+            #         f.write(f"{key}: {value}\n")
 
+            # log_artifact_if_exists(str(summary_file))
+            summary_file = save_summary_artifact(config, summary)
             log_artifact_if_exists(str(summary_file))
+            if history_file is not None:
+                log_artifact_if_exists(str(history_file))
             return summary
 
         for epoch in range(start_epoch, config["training"]["epochs"] + 1):
@@ -536,7 +543,7 @@ def train_semantic_baseline(config_path: str) -> dict:
 
         history_file = None
         if config["output"].get("save_history", False):
-            history_file = save_history(history, artifact_dir)
+            history_file = save_history_artifact(config, history)
 
         summary = {
             "best_val_contrastive_loss": best_val_loss,
@@ -546,11 +553,15 @@ def train_semantic_baseline(config_path: str) -> dict:
             "resumed_from_checkpoint": resumed_from_checkpoint,
         }
 
-        summary_file = artifact_dir / "training_summary.txt"
-        with summary_file.open("w", encoding="utf-8") as f:
-            for key, value in summary.items():
-                f.write(f"{key}: {value}\n")
+        # summary_file = artifact_dir / "training_summary.txt"
+        # with summary_file.open("w", encoding="utf-8") as f:
+        #     for key, value in summary.items():
+        #         f.write(f"{key}: {value}\n")
 
+        # log_artifact_if_exists(str(summary_file))
+        # if history_file is not None:
+        #     log_artifact_if_exists(str(history_file))
+        summary_file = save_summary_artifact(config, summary)
         log_artifact_if_exists(str(summary_file))
         if history_file is not None:
             log_artifact_if_exists(str(history_file))

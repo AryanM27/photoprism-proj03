@@ -150,6 +150,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import argparse
 import json
 from pathlib import Path
+from src.storage.artifact_io import save_metrics_artifact
 
 import mlflow
 
@@ -167,16 +168,16 @@ from src.mlflow.logger import (
 )
 from src.semantic.infer import generate_embeddings
 
+#Commented to integrate storage
+# def save_metrics(metrics: dict, output_dir: str) -> Path:
+#     output_path = Path(output_dir)
+#     output_path.mkdir(parents=True, exist_ok=True)
 
-def save_metrics(metrics: dict, output_dir: str) -> Path:
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
+#     metrics_file = output_path / "metrics.json"
+#     with metrics_file.open("w", encoding="utf-8") as f:
+#         json.dump(metrics, f, indent=2)
 
-    metrics_file = output_path / "metrics.json"
-    with metrics_file.open("w", encoding="utf-8") as f:
-        json.dump(metrics, f, indent=2)
-
-    return metrics_file
+#     return metrics_file
 
 
 def run_semantic_evaluation(config_path: str) -> dict:
@@ -208,9 +209,12 @@ def run_semantic_evaluation(config_path: str) -> dict:
     metrics["device"] = outputs["device"]
     metrics["num_samples"] = len(outputs["image_ids"])
 
-    metrics_file = save_metrics(metrics, config["output"]["artifact_dir"])
+    # metrics_file = save_metrics(metrics, config["output"]["artifact_dir"])
+    metrics_file = save_metrics_artifact(config, metrics)
 
-    tracking_uri = configure_mlflow()
+    # tracking_uri = configure_mlflow()
+    tracking_uri = configure_mlflow(config)
+
     experiment_name = config["experiment_name"]
 
     with start_run(experiment_name=experiment_name):

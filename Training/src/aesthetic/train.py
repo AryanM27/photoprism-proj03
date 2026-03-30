@@ -285,6 +285,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import argparse
 import json
 from pathlib import Path
+from src.storage.artifact_io import save_history_artifact, save_summary_artifact
 
 import mlflow
 import torch
@@ -439,7 +440,9 @@ def train_aesthetic_baseline(config_path: str) -> dict:
     artifact_dir = Path(config["output"]["artifact_dir"])
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    tracking_uri = configure_mlflow()
+    # tracking_uri = configure_mlflow()
+    tracking_uri = configure_mlflow(config)
+
 
     with start_run(experiment_name=config["experiment_name"]):
         log_config_params(config)
@@ -455,10 +458,11 @@ def train_aesthetic_baseline(config_path: str) -> dict:
                 "message": "No training run because checkpoint is already beyond configured epochs.",
             }
 
-            summary_file = artifact_dir / "training_summary.txt"
-            with summary_file.open("w", encoding="utf-8") as f:
-                for key, value in summary.items():
-                    f.write(f"{key}: {value}\n")
+            # summary_file = artifact_dir / "training_summary.txt"
+            # with summary_file.open("w", encoding="utf-8") as f:
+            #     for key, value in summary.items():
+            #         f.write(f"{key}: {value}\n")
+            summary_file = save_summary_artifact(config, summary)
 
             log_artifact_if_exists(str(summary_file))
             return summary
@@ -531,7 +535,8 @@ def train_aesthetic_baseline(config_path: str) -> dict:
 
         history_file = None
         if config["output"].get("save_history", False):
-            history_file = save_history(history, artifact_dir)
+            # history_file = save_history(history, artifact_dir)
+            history_file = save_history_artifact(config, history)
 
         summary = {
             "best_val_loss": best_val_loss,
@@ -542,10 +547,15 @@ def train_aesthetic_baseline(config_path: str) -> dict:
             "epochs_completed_in_this_run": max(0, config["training"]["epochs"] - start_epoch + 1),
         }
 
-        summary_file = artifact_dir / "training_summary.txt"
-        with summary_file.open("w", encoding="utf-8") as f:
-            for key, value in summary.items():
-                f.write(f"{key}: {value}\n")
+        # summary_file = artifact_dir / "training_summary.txt"
+        # with summary_file.open("w", encoding="utf-8") as f:
+        #     for key, value in summary.items():
+        #         f.write(f"{key}: {value}\n")
+
+        # log_artifact_if_exists(str(summary_file))
+        # if history_file is not None:
+        #     log_artifact_if_exists(str(history_file))
+        summary_file = save_summary_artifact(config, summary)
 
         log_artifact_if_exists(str(summary_file))
         if history_file is not None:

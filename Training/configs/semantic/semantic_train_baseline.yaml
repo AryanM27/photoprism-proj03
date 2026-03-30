@@ -28,3 +28,6 @@ checkpoint:
 output:
   artifact_dir: artifacts/semantic/semantic_train_baseline #add Training directory in front for local
   save_history: true
+
+storage:
+  backend: local
