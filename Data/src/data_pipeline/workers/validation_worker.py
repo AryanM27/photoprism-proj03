@@ -55,7 +55,7 @@ def process_validation_event(self, event: dict) -> dict:
         passed, reason = run_checks(storage_path)
 
         if not passed:
-            _mark_failed(db, image_id, reason)
+            _mark_failed(image_id, reason)
             logger.warning(f"[validation] FAILED {image_id}: {reason}")
             return {"image_id": image_id, "status": "failed"}
 
