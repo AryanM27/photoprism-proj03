@@ -46,6 +46,10 @@ class ProcessingJob(Base):
     created_at    = Column(DateTime, default=datetime.utcnow)
     updated_at    = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def __init__(self, **kwargs):
+        kwargs.setdefault("status", "queued")
+        super().__init__(**kwargs)
+
 
 class FeedbackEvent(Base):
     __tablename__ = "feedback_events"
