@@ -28,6 +28,9 @@ PATH_KEYS = {
     ("output", "artifact_dir"),
 }
 
+def _is_remote_uri(value: str) -> bool:
+    return isinstance(value, str) and "://" in value
+
 
 def _apply_env_overrides(config: dict) -> dict:
     """
@@ -77,10 +80,19 @@ def _apply_env_overrides(config: dict) -> dict:
     return config
 
 
+# def _resolve_known_paths(config: dict) -> dict:
+#     for section, key in PATH_KEYS:
+#         if section in config and key in config[section]:
+#             config[section][key] = resolve_training_path(config[section][key])
+
+#     return config
+
 def _resolve_known_paths(config: dict) -> dict:
     for section, key in PATH_KEYS:
         if section in config and key in config[section]:
-            config[section][key] = resolve_training_path(config[section][key])
+            value = config[section][key]
+            if isinstance(value, str) and not _is_remote_uri(value):
+                config[section][key] = resolve_training_path(value)
 
     return config
 

@@ -5,3 +5,10 @@ pillow
 torchvision
 open_clip_torch
 mlflow
+
+psycopg2-binary
+python-swiftclient
+python-keystoneclient
+
+tqdm
+requests

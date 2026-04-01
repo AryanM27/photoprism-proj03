@@ -3,7 +3,8 @@ experiment_name: semantic_train_baseline
 task: semantic
 
 dataset:
-  manifest_path: data/manifests/semantic_train_sample.jsonl #add Training directory in front for local (change in the manfest files as well)
+  #manifest_path: data/manifests/semantic_train_sample.jsonl #add Training directory in front for local (change in the manfest files as well)
+  manifest_uri: swift://training-data/manifests/semantic_manifest_v1.jsonl
   dataset_version: semantic-sample-v1
 
 model:
@@ -23,11 +24,13 @@ runtime:
   seed: 42
 
 checkpoint:
-  root_dir: artifacts/checkpoints #add Training directory in front for local
+  # root_dir: artifacts/checkpoints #add Training directory in front for local
+  root_dir: cache/checkpoints 
 
 output:
-  artifact_dir: artifacts/semantic/semantic_train_baseline #add Training directory in front for local
+  #artifact_dir: artifacts/semantic/semantic_train_baseline #add Training directory in front for local
+  artifact_dir: swift://training-artifacts/artifacts/semantic/semantic_train_baseline
   save_history: true
 
 storage:
-  backend: local
+  backend: object_store

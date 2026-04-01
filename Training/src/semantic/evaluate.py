@@ -140,6 +140,7 @@
 
 import sys
 from pathlib import Path
+from src.datasets.uri_resolver import cache_manifest_from_uri
 
 # Ensure Training directory is in PYTHONPATH
 CURRENT_FILE = Path(__file__).resolve()
@@ -183,8 +184,20 @@ from src.semantic.infer import generate_embeddings
 def run_semantic_evaluation(config_path: str) -> dict:
     config = load_config(config_path)
 
+    # outputs = generate_embeddings(
+    #     manifest_path=config["dataset"]["manifest_path"],
+    #     model_name=config["model"]["variant"],
+    #     device_str=config["runtime"]["device"],
+    #     use_mock_inference=config["model"].get("use_mock_inference", False),
+    #     embedding_dim=config["model"].get("embedding_dim", 512),
+    # )
+
+    manifest_ref = config["dataset"].get("manifest_uri") or config["dataset"]["manifest_path"]
+    manifest_path = cache_manifest_from_uri(config, manifest_ref)
+
     outputs = generate_embeddings(
-        manifest_path=config["dataset"]["manifest_path"],
+        manifest_path=manifest_path,
+        config=config,
         model_name=config["model"]["variant"],
         device_str=config["runtime"]["device"],
         use_mock_inference=config["model"].get("use_mock_inference", False),

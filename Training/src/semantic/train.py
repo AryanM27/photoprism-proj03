@@ -276,6 +276,11 @@
 
 import sys
 from pathlib import Path
+from src.datasets.uri_resolver import cache_manifest_from_uri
+from src.storage.checkpoint_sync import (
+    sync_checkpoint_dir_from_remote,
+    sync_checkpoint_dir_to_remote,
+)
 
 # Ensure Training directory is in PYTHONPATH
 CURRENT_FILE = Path(__file__).resolve()
@@ -386,13 +391,29 @@ def train_semantic_baseline(config_path: str) -> dict:
 
     device = get_device(config["runtime"]["device"])
 
+    # train_dataset = SemanticRetrievalDataset(
+    #     manifest_path=config["dataset"]["manifest_path"],
+    #     image_size=config["model"]["image_size"],
+    #     split="train",
+    # )
+    # val_dataset = SemanticRetrievalDataset(
+    #     manifest_path=config["dataset"]["manifest_path"],
+    #     image_size=config["model"]["image_size"],
+    #     split="val",
+    # )
+
+    manifest_ref = config["dataset"].get("manifest_uri") or config["dataset"]["manifest_path"]
+    manifest_path = cache_manifest_from_uri(config, manifest_ref)
+
     train_dataset = SemanticRetrievalDataset(
-        manifest_path=config["dataset"]["manifest_path"],
+        manifest_path=manifest_path,
+        config=config,
         image_size=config["model"]["image_size"],
         split="train",
     )
     val_dataset = SemanticRetrievalDataset(
-        manifest_path=config["dataset"]["manifest_path"],
+        manifest_path=manifest_path,
+        config=config,
         image_size=config["model"]["image_size"],
         split="val",
     )
@@ -422,6 +443,16 @@ def train_semantic_baseline(config_path: str) -> dict:
         model_family=config["model"]["family"],
         model_version=config["model"]["version"],
     )
+
+    local_checkpoint_dir = checkpoint_dir
+    remote_checkpoint_prefix = None
+
+    if config.get("storage", {}).get("backend") == "object_store":
+        remote_checkpoint_prefix = (
+            f"swift://training-artifacts/checkpoints/"
+            f"{config['task']}/{config['model']['version']}"
+    )   
+        sync_checkpoint_dir_from_remote(config, remote_checkpoint_prefix, local_checkpoint_dir)
 
     start_epoch = 1
     global_step = 0
@@ -540,6 +571,9 @@ def train_semantic_baseline(config_path: str) -> dict:
                 is_best=is_best,
                 save_epoch_copy=True,
             )
+
+            if remote_checkpoint_prefix is not None:
+                sync_checkpoint_dir_to_remote(config, local_checkpoint_dir, remote_checkpoint_prefix)
 
         history_file = None
         if config["output"].get("save_history", False):

@@ -3,7 +3,8 @@ experiment_name: aesthetic_linear_head_baseline
 task: aesthetic
 
 dataset:
-  manifest_path: data/manifests/aesthetic_sample.jsonl #add Training directory in front for local
+  # manifest_path: data/manifests/aesthetic_sample.jsonl #add Training directory in front for local
+  manifest_uri: swift://training-data/manifests/aesthetic_manifest_v1.jsonl
   dataset_version: aesthetic-sample-v1
 
 model:
@@ -22,11 +23,13 @@ runtime:
   seed: 42
 
 checkpoint:
-  root_dir: artifacts/checkpoints #add Training directory in front for local
+  # root_dir: artifacts/checkpoints #add Training directory in front for local
+  root_dir: cache/checkpoints 
 
 output:
-  artifact_dir: artifacts/aesthetic/linear_head_baseline #add Training directory in front for local
+  # artifact_dir: artifacts/aesthetic/linear_head_baseline #add Training directory in front for local
+  artifact_dir: swift://training-artifacts/artifacts/aesthetic/linear_head_baseline
   save_history: true
 
 storage:
-  backend: local
+  backend: object_store

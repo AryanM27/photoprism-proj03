@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import open_clip
 import torch
@@ -57,10 +57,12 @@ def _build_mock_image_embedding(image_tensor: torch.Tensor, embedding_dim: int) 
 @torch.no_grad()
 def generate_mock_embeddings(
     manifest_path: str,
+    config: dict,
     embedding_dim: int = 512,
     batch_size: int = 2,
+    split: Optional[str] = None,
 ) -> Dict:
-    dataset = SemanticRetrievalDataset(manifest_path)
+    dataset = SemanticRetrievalDataset(manifest_path = manifest_path, config = config, image_size=config["model"]["image_size"], split = split,)
     loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn)
 
     all_image_embeddings = []
@@ -96,14 +98,16 @@ def generate_mock_embeddings(
 @torch.no_grad()
 def generate_openclip_embeddings(
     manifest_path: str,
+    config: dict,
     model_name: str,
     device_str: str,
     batch_size: int = 2,
+    split: Optional[str] = None,
 ) -> Dict:
-    dataset = SemanticRetrievalDataset(manifest_path)
+    
+    model, tokenizer, preprocess, device = load_model(model_name, device_str)
+    dataset = SemanticRetrievalDataset(manifest_path = manifest_path, config = config, image_size=config["model"]["image_size"], split = split, transform_override = preprocess,)
     loader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn)
-
-    model, tokenizer, _, device = load_model(model_name, device_str)
 
     all_image_embeddings = []
     all_text_embeddings = []
@@ -136,22 +140,28 @@ def generate_openclip_embeddings(
 
 def generate_embeddings(
     manifest_path: str,
+    config: dict,
     model_name: str,
     device_str: str,
     use_mock_inference: bool = False,
     embedding_dim: int = 512,
     batch_size: int = 2,
+    split: Optional[str] = None,
 ) -> Dict:
     if use_mock_inference:
         return generate_mock_embeddings(
             manifest_path=manifest_path,
+            config=config,
             embedding_dim=embedding_dim,
             batch_size=batch_size,
+            split=split,
         )
 
     return generate_openclip_embeddings(
         manifest_path=manifest_path,
+        config=config,
         model_name=model_name,
         device_str=device_str,
         batch_size=batch_size,
+        split=split,
     )
