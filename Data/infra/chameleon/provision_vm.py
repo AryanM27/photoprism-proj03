@@ -46,6 +46,7 @@ security_groups = [
     {"name": "allow-8080",  "port": 8080, "description": "Enable TCP port 8080 (Adminer)"},
     {"name": "allow-9090",  "port": 9090, "description": "Enable TCP port 9090 (Prometheus)"},
     {"name": "allow-3000",  "port": 3000, "description": "Enable TCP port 3000 (Grafana)"},
+    {"name": "allow-6333",  "port": 6333, "description": "Enable TCP port 6333 (Qdrant REST API)"},
 ]
 
 for sg in security_groups:

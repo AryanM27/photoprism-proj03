@@ -1,11 +1,13 @@
 """
 build.py — Build versioned dataset manifests from validated images in Postgres.
 
-Produces four JSONL manifest files per version and uploads them to MinIO:
+Produces six JSONL manifest files per version and uploads them to MinIO:
     manifests/v<N>/semantic_train.jsonl
     manifests/v<N>/semantic_val.jsonl
+    manifests/v<N>/semantic_test.jsonl
     manifests/v<N>/aesthetic_train.jsonl
     manifests/v<N>/aesthetic_val.jsonl
+    manifests/v<N>/aesthetic_test.jsonl
 
 Records a DatasetSnapshot row in Postgres for each version built.
 
@@ -24,6 +26,10 @@ import logging
 import argparse
 from datetime import datetime, timezone
 
+# Aesthetic scores from FeedbackEvent are stored in 0–1 range.
+# Training lead expects 0–10 scale.
+_AESTHETIC_SCALE = 10.0
+
 import boto3
 from botocore.client import Config
 from sqlalchemy import select
@@ -38,7 +44,7 @@ S3_ENDPOINT   = os.environ.get("S3_ENDPOINT_URL", "http://minio:9000")
 S3_ACCESS_KEY = os.environ.get("MINIO_USER", "minioadmin")
 S3_SECRET_KEY = os.environ.get("MINIO_PASSWORD", "minioadmin")
 
-SPLIT_STRATEGY = "hash_hex_75_25"  # int(image_id[-1], 16) < 4 → val (~25%), else train (~75%)
+SPLIT_STRATEGY = "hash_hex_62_19_19"  # last hex digit: 0-2→val, 3-5→test, 6-f→train
 
 
 def _s3_client():
@@ -79,12 +85,17 @@ def _record_snapshot(db, version: str, manifest_path: str, record_count: int) ->
 
 
 def build_semantic_manifests(version: str, source_dataset: str | None = None) -> dict:
-    """Build semantic manifests (image_id, image_uri, text, split, source_dataset).
+    """Build semantic manifests per training lead schema.
 
-    Includes only validated images that have a non-null text in image_metadata.
-    Anti-leakage: split is deterministic from image_id hash, not assigned at build time.
+    Each record: record_id, image_id, image_uri, split, dataset_version,
+                 source_dataset, text_id, text, pair_label.
 
-    Returns dict with counts per split.
+    - image_uri: stable s3:// URI (set at ingest time, never a local path).
+    - text_id: deterministic UUID5 from text content — same text always maps to same ID.
+    - pair_label: 1 for all records (matched image-text pairs only).
+    - Anti-leakage: split is read from images.split (hash-deterministic at ingest), never re-derived here.
+
+    Returns dict with counts per split (train, val, test).
     """
     db = SessionLocal()
     s3 = _s3_client()
@@ -93,48 +104,55 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
             db.query(Image, ImageMetadata)
             .join(ImageMetadata, Image.image_id == ImageMetadata.image_id)
             .filter(Image.status == "validated")
-            .filter(Image.split.isnot(None))       # exclude rows with no split assigned
+            .filter(Image.split.isnot(None))
             .filter(ImageMetadata.text.isnot(None))
         )
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
 
-        train_records, val_records = [], []
+        train_records, val_records, test_records = [], [], []
         for image, meta in query.all():
             record = {
-                "image_id": image.image_id,
-                "image_uri": image.image_uri,
-                "text": meta.text,
-                "split": image.split,
-                "source_dataset": image.source_dataset,
+                "record_id":       str(uuid.uuid4()),
+                "image_id":        image.image_id,
+                "image_uri":       image.image_uri,
+                "split":           image.split,
+                "dataset_version": version,
+                "source_dataset":  image.source_dataset,
+                "text_id":         str(uuid.uuid5(uuid.NAMESPACE_DNS, meta.text)),
+                "text":            meta.text,
+                "pair_label":      1,
             }
             if image.split == "val":
                 val_records.append(record)
+            elif image.split == "test":
+                test_records.append(record)
             else:
                 train_records.append(record)
 
         prefix = f"manifests/{version}"
-        train_key = f"{prefix}/semantic_train.jsonl"
-        val_key   = f"{prefix}/semantic_val.jsonl"
+        train_count = _upload_jsonl(s3, f"{prefix}/semantic_train.jsonl", train_records)
+        val_count   = _upload_jsonl(s3, f"{prefix}/semantic_val.jsonl",   val_records)
+        test_count  = _upload_jsonl(s3, f"{prefix}/semantic_test.jsonl",  test_records)
 
-        train_count = _upload_jsonl(s3, train_key, train_records)
-        val_count   = _upload_jsonl(s3, val_key,   val_records)
-
-        # Store prefix URI — callers append /semantic_train.jsonl or /semantic_val.jsonl
         manifest_path = f"s3://{BUCKET}/{prefix}/"
-        _record_snapshot(db, version, manifest_path, train_count + val_count)
+        _record_snapshot(db, version, manifest_path, train_count + val_count + test_count)
 
-        return {"train": train_count, "val": val_count}
+        return {"train": train_count, "val": val_count, "test": test_count}
     finally:
         db.close()
 
 
 def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -> dict:
-    """Build aesthetic manifests (image_id, image_uri, aesthetic_score, split, source_dataset).
+    """Build aesthetic manifests per training lead schema.
 
-    Includes only validated images that have a non-null aesthetic_score in feedback_events.
-    Uses median aesthetic_score per image across all feedback events as the label.
-    Anti-leakage: split is deterministic from image_id hash, not assigned at build time.
+    Each record: record_id, image_id, image_uri, split, dataset_version,
+                 source_dataset, aesthetic_score (0–10 scale).
+
+    - aesthetic_score is averaged across all FeedbackEvent rows per image,
+      then multiplied by 10 to normalise from the stored 0–1 range to 0–10.
+    - image_uri: stable s3:// URI, never a local path.
+    - Anti-leakage: split is read from images.split, never re-derived here.
 
     Returns dict with counts per split.
     """
@@ -144,7 +162,8 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
     db = SessionLocal()
     s3 = _s3_client()
     try:
-        # Aggregate median-like score: use AVG as a proxy (Postgres lacks MEDIAN)
+        # AVG as proxy for median (Postgres lacks MEDIAN).
+        # Scores are stored in 0–1 range; normalised to 0–10 at record build time.
         score_subq = (
             db.query(
                 FeedbackEvent.image_id,
@@ -159,43 +178,117 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
             db.query(Image, score_subq.c.aesthetic_score)
             .join(score_subq, Image.image_id == score_subq.c.image_id)
             .filter(Image.status == "validated")
-            .filter(Image.split.isnot(None))       # exclude rows with no split assigned
+            .filter(Image.split.isnot(None))
             .filter(score_subq.c.aesthetic_score.isnot(None))
         )
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
 
-        train_records, val_records = [], []
+        train_records, val_records, test_records = [], [], []
         for image, score in query.all():
             if score is None:
                 logger.warning(f"Skipping {image.image_id}: null aesthetic_score after join")
                 continue
+            raw_score = float(score)
+            if not (0.0 <= raw_score <= 1.0):
+                logger.warning(
+                    f"aesthetic_score {raw_score} for {image.image_id} is outside [0,1]; clamping."
+                )
+                raw_score = max(0.0, min(1.0, raw_score))
             record = {
-                "image_id": image.image_id,
-                "image_uri": image.image_uri,
-                "aesthetic_score": round(float(score), 4),
-                "split": image.split,
-                "source_dataset": image.source_dataset,
+                "record_id":       str(uuid.uuid4()),
+                "image_id":        image.image_id,
+                "image_uri":       image.image_uri,
+                "split":           image.split,
+                "dataset_version": version,
+                "source_dataset":  image.source_dataset,
+                "aesthetic_score": round(raw_score * _AESTHETIC_SCALE, 4),
             }
             if image.split == "val":
                 val_records.append(record)
+            elif image.split == "test":
+                test_records.append(record)
             else:
                 train_records.append(record)
 
         prefix = f"manifests/{version}"
-        train_key = f"{prefix}/aesthetic_train.jsonl"
-        val_key   = f"{prefix}/aesthetic_val.jsonl"
+        train_count = _upload_jsonl(s3, f"{prefix}/aesthetic_train.jsonl", train_records)
+        val_count   = _upload_jsonl(s3, f"{prefix}/aesthetic_val.jsonl",   val_records)
+        test_count  = _upload_jsonl(s3, f"{prefix}/aesthetic_test.jsonl",  test_records)
 
-        train_count = _upload_jsonl(s3, train_key, train_records)
-        val_count   = _upload_jsonl(s3, val_key,   val_records)
-
-        # Store prefix URI — callers append /aesthetic_train.jsonl or /aesthetic_val.jsonl
         manifest_path = f"s3://{BUCKET}/{prefix}/"
-        _record_snapshot(db, version, manifest_path, train_count + val_count)
+        _record_snapshot(db, version, manifest_path, train_count + val_count + test_count)
 
-        return {"train": train_count, "val": val_count}
+        return {"train": train_count, "val": val_count, "test": test_count}
     finally:
         db.close()
+
+
+def build_version_metadata(
+    version: str,
+    semantic_counts: dict | None,
+    aesthetic_counts: dict | None,
+    source_dataset: str | None = None,
+) -> str:
+    """Upload a metadata.json for a dataset version to MinIO.
+
+    Pass None for semantic_counts or aesthetic_counts if that manifest type was
+    not built in this run — those URIs and counts will be omitted from the output
+    rather than shown as zero (which would falsely imply an empty built manifest).
+
+    Schema:
+        version, built_at, split_strategy, source_datasets,
+        manifest_uris { only types that were built },
+        counts { only types that were built, plus total }
+
+    Returns the s3:// URI of the uploaded metadata file.
+    """
+    s3 = _s3_client()
+    prefix = f"manifests/{version}"
+
+    manifest_uris = {}
+    counts = {}
+    if semantic_counts is not None:
+        manifest_uris["semantic_train"] = f"s3://{BUCKET}/{prefix}/semantic_train.jsonl"
+        manifest_uris["semantic_val"]   = f"s3://{BUCKET}/{prefix}/semantic_val.jsonl"
+        manifest_uris["semantic_test"]  = f"s3://{BUCKET}/{prefix}/semantic_test.jsonl"
+        counts["semantic_train"] = semantic_counts["train"]
+        counts["semantic_val"]   = semantic_counts["val"]
+        counts["semantic_test"]  = semantic_counts["test"]
+    if aesthetic_counts is not None:
+        manifest_uris["aesthetic_train"] = f"s3://{BUCKET}/{prefix}/aesthetic_train.jsonl"
+        manifest_uris["aesthetic_val"]   = f"s3://{BUCKET}/{prefix}/aesthetic_val.jsonl"
+        manifest_uris["aesthetic_test"]  = f"s3://{BUCKET}/{prefix}/aesthetic_test.jsonl"
+        counts["aesthetic_train"] = aesthetic_counts["train"]
+        counts["aesthetic_val"]   = aesthetic_counts["val"]
+        counts["aesthetic_test"]  = aesthetic_counts["test"]
+    # total = unique images (same images appear in both semantic and aesthetic,
+    # so sum only one type's splits to avoid double-counting)
+    if semantic_counts is not None:
+        counts["total"] = sum(semantic_counts.values())
+    elif aesthetic_counts is not None:
+        counts["total"] = sum(aesthetic_counts.values())
+    else:
+        counts["total"] = 0
+
+    meta = {
+        "version":         version,
+        "built_at":        datetime.now(timezone.utc).isoformat(),
+        "split_strategy":  SPLIT_STRATEGY,
+        "source_datasets": [source_dataset] if source_dataset else ["all"],
+        "manifest_uris":   manifest_uris,
+        "counts":          counts,
+    }
+    key = f"{prefix}/metadata.json"
+    s3.put_object(
+        Bucket=BUCKET,
+        Key=key,
+        Body=json.dumps(meta, indent=2).encode(),
+        ContentType="application/json",
+    )
+    uri = f"s3://{BUCKET}/{key}"
+    logger.info(f"Uploaded version metadata: {uri}")
+    return uri
 
 
 if __name__ == "__main__":
@@ -209,10 +302,19 @@ if __name__ == "__main__":
                         help="Which manifest type to build")
     args = parser.parse_args()
 
+    # None = not built this run (excluded from metadata counts rather than shown as 0)
+    semantic_counts  = None
+    aesthetic_counts = None
+
     if args.type in ("semantic", "both"):
-        counts = build_semantic_manifests(args.version, args.dataset)
-        print(f"Semantic manifests: train={counts['train']} val={counts['val']}")
+        semantic_counts = build_semantic_manifests(args.version, args.dataset)
+        print(f"Semantic manifests:  train={semantic_counts['train']} val={semantic_counts['val']} test={semantic_counts['test']}")
 
     if args.type in ("aesthetic", "both"):
-        counts = build_aesthetic_manifests(args.version, args.dataset)
-        print(f"Aesthetic manifests: train={counts['train']} val={counts['val']}")
+        aesthetic_counts = build_aesthetic_manifests(args.version, args.dataset)
+        print(f"Aesthetic manifests: train={aesthetic_counts['train']} val={aesthetic_counts['val']} test={aesthetic_counts['test']}")
+
+    metadata_uri = build_version_metadata(
+        args.version, semantic_counts, aesthetic_counts, args.dataset
+    )
+    print(f"Version metadata: {metadata_uri}")
