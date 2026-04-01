@@ -138,6 +138,55 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  embedding-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: embedding-worker
+    command: >
+      celery -A src.data_pipeline.workers.celery_app worker
+      --loglevel=info --queues=embedding --concurrency=1
+      --hostname=embedding@%h
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      S3_ENDPOINT_URL: http://minio:9000
+      MINIO_BUCKET: photoprism-proj03
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    restart: unless-stopped
+
+  features-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: features-api
+    ports:
+      - "8000:8000"
+    environment:
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
+    depends_on:
+      qdrant:
+        condition: service_started
+    restart: unless-stopped
+
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: postgres-exporter

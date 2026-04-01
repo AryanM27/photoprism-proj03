@@ -21,6 +21,7 @@ app = Celery(
     include=[
         "src.data_pipeline.workers.ingestion_worker",
         "src.data_pipeline.workers.validation_worker",
+        "src.data_pipeline.workers.embedding_worker",
     ],
 )
 
@@ -40,5 +41,6 @@ app.conf.update(
         "src.data_pipeline.workers.validation_worker.process_validation_event": {
             "queue": "validation"
         },
+        "src.data_pipeline.workers.embedding_worker.embed_image": {"queue": "embedding"},
     },
 )

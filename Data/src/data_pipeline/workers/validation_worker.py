@@ -19,6 +19,7 @@ import logging
 from src.data_pipeline.workers.celery_app import app
 from src.data_pipeline.db.session import SessionLocal
 from src.data_pipeline.db.models import Image, ProcessingJob
+from src.data_pipeline.workers.embedding_worker import embed_image
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ def process_validation_event(self, event: dict) -> dict:
 
         db.commit()
         logger.info(f"[validation] OK {image_id}")
+        embed_image.delay(image_id)
         return {"image_id": image_id, "status": "validated"}
 
     except Exception as exc:
