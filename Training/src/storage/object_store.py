@@ -66,22 +66,42 @@ class ObjectStoreBackend(StorageBackend):
         username: str,
         password: str,
         project_name: str,
+        project_id: str,
+        auth_type:str,
+        token: str,
+        storage_url: str,
         user_domain_name: str,
         project_domain_name: str,
         region_name: str,
     ):
-        self.conn = swiftclient.Connection(
-            authurl=auth_url,
-            user=username,
-            key=password,
-            os_options={
-                "project_name": project_name,
-                "user_domain_name": user_domain_name,
-                "project_domain_name": project_domain_name,
-                "region_name": region_name,
-            },
-            auth_version="3",
-        )
+        
+        os_options = {
+            "region_name": region_name,
+        }
+
+        if project_name:
+            os_options["project_name"] = project_name
+        if project_id:
+            os_options["project_id"] = project_id
+        if user_domain_name:
+            os_options["user_domain_name"] = user_domain_name
+        if project_domain_name:
+            os_options["project_domain_name"] = project_domain_name
+
+        if auth_type == "token":
+            self.conn = swiftclient.Connection(
+                preauthurl=storage_url,
+                preauthtoken=token,
+                auth_version="3",
+            )
+        else:
+            self.conn = swiftclient.Connection(
+                authurl=auth_url,
+                user=username,
+                key=password,
+                os_options=os_options,
+                auth_version="3",
+            )
 
     def exists(self, path: str) -> bool:
         container, obj = parse_swift_uri(path)
