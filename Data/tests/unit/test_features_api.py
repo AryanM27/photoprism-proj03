@@ -6,9 +6,12 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 
 
-@patch("src.data_pipeline.features.online.QdrantStore")
-@patch("src.data_pipeline.features.online.CLIPEncoder")
+@patch("src.data_pipeline.features.online._StubStore")
+@patch("src.data_pipeline.features.online._StubEncoder")
 def test_search_endpoint_returns_results(mock_encoder_cls, mock_store_cls):
+    import src.data_pipeline.features.online as _online
+    _online._encoder = None
+    _online._store = None
     from src.data_pipeline.features.online import app
     client = TestClient(app)
 
@@ -27,9 +30,12 @@ def test_search_endpoint_returns_results(mock_encoder_cls, mock_store_cls):
     assert data["results"][0]["image_id"] == "abc"
 
 
-@patch("src.data_pipeline.features.online.QdrantStore")
-@patch("src.data_pipeline.features.online.CLIPEncoder")
+@patch("src.data_pipeline.features.online._StubStore")
+@patch("src.data_pipeline.features.online._StubEncoder")
 def test_search_empty_query_returns_422(mock_encoder_cls, mock_store_cls):
+    import src.data_pipeline.features.online as _online
+    _online._encoder = None
+    _online._store = None
     from src.data_pipeline.features.online import app
     client = TestClient(app)
     response = client.post("/search", json={"query": "", "top_k": 5})

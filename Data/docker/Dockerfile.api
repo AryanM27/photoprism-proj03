@@ -5,7 +5,7 @@ RUN pip install --no-cache-dir \
     uvicorn[standard] \
     Pillow \
     requests \
-    sentence-transformers==3.0.1 \
+    numpy \
     qdrant-client==1.9.1
 RUN useradd -m -u 1000 apiuser
 COPY src/ ./src/

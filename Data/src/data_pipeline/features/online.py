@@ -5,35 +5,90 @@ Endpoints:
     POST /search    — text query → Qdrant ANN → ranked image results
     GET  /healthz   — liveness probe
     POST /features  — image → CLIP embedding + aesthetic score
+
+Note: CLIPEncoder is stubbed until training lead provides model via MLflow artifacts.
+      The stub returns deterministic normalised vectors for shape correctness.
 """
 import base64
+import hashlib
 import io
 import os
 import time
+import numpy as np
+import requests
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, field_validator
 from PIL import Image
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
 
-from src.data_pipeline.embeddings.encoder import CLIPEncoder
-from src.data_pipeline.embeddings.qdrant_store import QdrantStore
+
+class _StubEncoder:
+    """Placeholder until training lead provides model via MLflow artifacts.
+    Returns a deterministic normalised 512-dim vector derived from the input hash.
+    Ensures /search returns results in correct shape without loading sentence-transformers.
+    """
+    VECTOR_DIM = 512
+
+    def encode_text(self, text: str) -> np.ndarray:
+        seed = int(hashlib.sha256(text.encode()).hexdigest(), 16) % (2**32)
+        rng = np.random.default_rng(seed)
+        vec = rng.random(self.VECTOR_DIM).astype("float32")
+        return vec / np.linalg.norm(vec)
+
+
+class _StubStore:
+    """Thin Qdrant client wrapper for /search only — no sentence-transformers dependency."""
+
+    def __init__(self, host: str, port: int, collection: str):
+        self._client = QdrantClient(host=host, port=port)
+        self.collection = collection
+
+    def ensure_collection(self, vector_size: int = 512) -> None:
+        from qdrant_client.http.exceptions import UnexpectedResponse
+        try:
+            self._client.get_collection(self.collection)
+        except UnexpectedResponse as exc:
+            if exc.status_code == 404:
+                self._client.create_collection(
+                    collection_name=self.collection,
+                    vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+                )
+            else:
+                raise
+
+    def search(self, query_vector: np.ndarray, top_k: int = 10,
+               filter_: dict | None = None) -> list[dict]:
+        hits = self._client.search(
+            collection_name=self.collection,
+            query_vector=query_vector.tolist(),
+            limit=top_k,
+            query_filter=filter_,
+            with_payload=True,
+        )
+        return [
+            {"image_id": h.payload.get("image_id"), "score": h.score, **h.payload}
+            for h in hits
+        ]
+
 
 app = FastAPI(title="PhotoPrism Features API")
 
-_encoder: CLIPEncoder | None = None
-_store: QdrantStore | None = None
+_encoder: _StubEncoder | None = None
+_store: _StubStore | None = None
 
 
-def _get_encoder() -> CLIPEncoder:
+def _get_encoder() -> _StubEncoder:
     global _encoder
     if _encoder is None:
-        _encoder = CLIPEncoder(model_name=os.environ.get("EMBEDDING_MODEL", "clip-ViT-B-32"))
+        _encoder = _StubEncoder()
     return _encoder
 
 
-def _get_store() -> QdrantStore:
+def _get_store() -> _StubStore:
     global _store
     if _store is None:
-        _store = QdrantStore(
+        _store = _StubStore(
             host=os.environ["QDRANT_HOST"],
             port=int(os.environ["QDRANT_PORT"]),
             collection=os.environ["QDRANT_COLLECTION"],
@@ -100,8 +155,7 @@ def compute_features(payload: ImagePayload) -> FeatureResponse:
         img = Image.open(io.BytesIO(base64.b64decode(payload.image_b64)))
     else:
         try:
-            import requests as http
-            response = http.get(payload.image_url, timeout=10)
+            response = requests.get(payload.image_url, timeout=10)
             response.raise_for_status()
             img = Image.open(io.BytesIO(response.content))
         except Exception as e:
@@ -115,8 +169,9 @@ def compute_features(payload: ImagePayload) -> FeatureResponse:
 
 
 def _compute_embedding(img: Image.Image) -> list[float]:
-    # Stub: returns zero vector until CLIP inference is wired in
-    return [0.0] * 512
+    # Stub: returns a normalised uniform vector until CLIP model is provided via MLflow
+    vec = np.ones(512, dtype="float32")
+    return (vec / np.linalg.norm(vec)).tolist()
 
 
 def _compute_aesthetic_score(img: Image.Image) -> float:
