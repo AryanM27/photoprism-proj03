@@ -4,7 +4,7 @@ task: semantic
 
 dataset:
   #manifest_path: data/manifests/semantic_train_sample.jsonl #add Training directory in front for local (change in the manfest files as well)
-  manifest_uri: swift://training-data/manifests/semantic_manifest_v1.jsonl
+  manifest_uri: swift://training-module-proj03/manifests/semantic_manifest_v1.jsonl
   dataset_version: semantic-sample-v1
 
 model:
@@ -29,7 +29,7 @@ checkpoint:
 
 output:
   #artifact_dir: artifacts/semantic/semantic_train_baseline #add Training directory in front for local
-  artifact_dir: swift://training-artifacts/artifacts/semantic/semantic_train_baseline
+  artifact_dir: swift://training-module-proj03/artifacts/semantic/semantic_train_baseline
   save_history: true
 
 storage:

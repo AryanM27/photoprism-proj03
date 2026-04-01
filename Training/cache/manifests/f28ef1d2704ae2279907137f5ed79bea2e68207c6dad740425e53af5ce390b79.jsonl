@@ -1,0 +1,2 @@
+{"record_id":"semantic-000001","image_id":"img-000001","image_uri":"swift://training-module-proj03/images/food1.jpg","split":"train","dataset_version":"semantic-v1","source_dataset":"manual_test","text_id":"txt-000001","text":"a dog running on the beach","pair_label":1}
+{"record_id":"semantic-000002","image_id":"img-000002","image_uri":"swift://training-module-proj03/images/food2.jpg","split":"val","dataset_version":"semantic-v1","source_dataset":"manual_test","text_id":"txt-000002","text":"a sunset over the ocean","pair_label":1}

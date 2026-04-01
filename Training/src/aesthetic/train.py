@@ -438,7 +438,7 @@ def train_aesthetic_baseline(config_path: str) -> dict:
 
     if config.get("storage", {}).get("backend") == "object_store":
         remote_checkpoint_prefix = (
-            f"swift://training-artifacts/checkpoints/"
+            f"swift://training-module-proj03/checkpoints/"
             f"{config['task']}/{config['model']['version']}"
         )
         sync_checkpoint_dir_from_remote(config, remote_checkpoint_prefix, local_checkpoint_dir)

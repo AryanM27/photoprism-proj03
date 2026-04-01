@@ -1,0 +1,2 @@
+{"record_id":"aesthetic-000001","image_id":"img-100001","image_uri":"swift://training-module-proj03/images/food3.jpg","split":"train","dataset_version":"aesthetic-v1","source_dataset":"manual_test","aesthetic_score":6.8}
+{"record_id":"aesthetic-000002","image_id":"img-000002","image_uri":"swift://training-module-proj03/images/food2.jpg","split":"val","dataset_version":"aesthetic-v1","source_dataset":"manual_test","aesthetic_score":4.2}

@@ -1,0 +1,12 @@
+{
+  "saved_at": "2026-04-01T02:56:55Z",
+  "task": "aesthetic",
+  "model_family": "linear_head",
+  "model_version": "aesthetic-linear-v1",
+  "epoch": 1,
+  "global_step": 1,
+  "metric_name": "val_mse_loss",
+  "metric_value": 16.723291397094727,
+  "dataset_version": "aesthetic-sample-v1",
+  "config_path": "configs/aesthetic/linear_head_baseline.yaml"
+}
