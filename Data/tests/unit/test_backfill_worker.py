@@ -1,5 +1,6 @@
 """Unit tests for backfill Celery worker."""
 from unittest.mock import patch, MagicMock
+from celery.exceptions import MaxRetriesExceededError
 
 
 @patch("src.data_pipeline.workers.backfill_worker.embed_image")
@@ -29,10 +30,7 @@ def test_reprocess_image_raises_for_missing_image(mock_session_cls):
 
     from src.data_pipeline.workers.backfill_worker import reprocess_image
     import pytest
-    # Bare Exception is intentional: .run() with max_retries exhausted may raise
-    # MaxRetriesExceededError (a Celery subclass of Exception) or re-raise the original
-    # ValueError, so we catch the common base rather than enumerate both.
-    with pytest.raises((ValueError, Exception)):
+    with pytest.raises((ValueError, MaxRetriesExceededError)):
         reprocess_image.run("missing_id", "clip-ViT-B-32")
 
     fake_session.rollback.assert_called_once()

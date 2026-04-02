@@ -51,14 +51,13 @@ def reprocess_image(self, image_id: str, model_version: str) -> dict:
         try:
             embed_image.delay(image_id)
         except Exception as broker_exc:
-            # embed_image.delay() failed (e.g. broker down). The first commit already
-            # set status="running" and cannot be rolled back, so warn operators that
-            # this job is stuck at "running" and will need manual intervention or a retry.
             logger.warning(
-                "Backfill job for %s is stuck at 'running': embed_image.delay() raised: %s",
-                image_id,
-                broker_exc,
+                "embed_image.delay() failed for image_id=%s; resetting job to queued for retry. Error: %s",
+                image_id, broker_exc,
             )
+            if job:
+                job.status = "queued"
+                db.commit()
             raise
 
         logger.info("Backfill dispatched for %s (model=%s)", image_id, model_version)

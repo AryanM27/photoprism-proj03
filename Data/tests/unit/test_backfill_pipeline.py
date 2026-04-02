@@ -39,7 +39,7 @@ def test_trigger_backfill_wet_run_writes_db_and_publishes():
     fake_session = MagicMock()
     fake_session.query.return_value.filter_by.return_value.all.return_value = _make_fake_images(3)
 
-    with patch("src.data_pipeline.backfill.pipeline.Publisher") as mock_pub_cls:
+    with patch("src.data_pipeline.ingestion.publisher.Publisher") as mock_pub_cls:
         mock_pub = MagicMock()
         mock_pub_cls.return_value.__enter__ = MagicMock(return_value=mock_pub)
         mock_pub_cls.return_value.__exit__ = MagicMock(return_value=False)
