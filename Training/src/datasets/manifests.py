@@ -182,7 +182,7 @@ def validate_aesthetic_manifest(records: List[Dict]) -> None:
             record["aesthetic_score"] = float(record["aesthetic_score"])
         except (TypeError, ValueError):
             raise ValueError(
-                f"Record {idx} has non-numeric aesthetic score: {record["aesthetic_score"]}"
+                f"Record {idx} has non-numeric aesthetic score: {record['aesthetic_score']}"
             )
 
         if record["aesthetic_score"] < 0 or record["aesthetic_score"] > 10:
