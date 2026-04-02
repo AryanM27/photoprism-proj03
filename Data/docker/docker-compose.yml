@@ -150,6 +150,32 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  backfill-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: backfill-worker
+    command: >
+      celery -A src.data_pipeline.workers.celery_app worker
+      --loglevel=info --queues=backfill --concurrency=1
+      --hostname=backfill@%h
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      S3_ENDPOINT_URL: http://minio:9000
+      MINIO_BUCKET: photoprism-proj03
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
+
   features-api:
     build:
       context: ..
