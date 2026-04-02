@@ -39,6 +39,7 @@ from urllib.parse import urlparse
 import json
 
 import swiftclient
+import os
 
 from src.storage.base import StorageBackend
 
@@ -58,50 +59,82 @@ def parse_swift_uri(uri: str) -> Tuple[str, str]:
 
     return container, object_name
 
+def _build_swift_connection():
+    auth_url = os.environ["OS_AUTH_URL"]
+    auth_type = os.getenv("OS_AUTH_TYPE", "").strip()
+    auth_version = os.getenv("OS_IDENTITY_API_VERSION", "3")
+
+    os_options = {
+        "region_name": os.getenv("OS_REGION_NAME") or os.getenv("OS_REGION"),
+        "project_id": os.getenv("OS_PROJECT_ID"),
+        "project_name": os.getenv("OS_PROJECT_NAME"),
+        "user_domain_name": os.getenv("OS_USER_DOMAIN_NAME"),
+        "project_domain_name": os.getenv("OS_PROJECT_DOMAIN_NAME"),
+        "interface": os.getenv("OS_INTERFACE"),
+        "auth_type": auth_type,
+    }
+
+    # remove empty values
+    os_options = {k: v for k, v in os_options.items() if v}
+
+    if auth_type == "v3applicationcredential":
+        app_cred_id = os.getenv("OS_APPLICATION_CREDENTIAL_ID")
+        app_cred_secret = os.getenv("OS_APPLICATION_CREDENTIAL_SECRET")
+
+        if not app_cred_id or not app_cred_secret:
+            raise ValueError(
+                "OS_AUTH_TYPE is v3applicationcredential but application credential env vars are missing."
+            )
+
+        os_options["application_credential_id"] = app_cred_id
+        os_options["application_credential_secret"] = app_cred_secret
+
+        return swiftclient.Connection(
+            authurl=auth_url,
+            os_options=os_options,
+            auth_version=auth_version,
+        )
+
+    # token auth path
+    if auth_type == "token":
+        auth_token = os.getenv("OS_AUTH_TOKEN") or os.getenv("OS_TOKEN")
+        storage_url = os.getenv("OS_STORAGE_URL")
+
+        if not auth_token:
+            raise ValueError("Token auth selected but OS_AUTH_TOKEN / OS_TOKEN is missing.")
+        if not storage_url:
+            raise ValueError("Token auth selected but OS_STORAGE_URL is missing.")
+
+        return swiftclient.Connection(
+            preauthurl=storage_url,
+            preauthtoken=auth_token,
+            auth_version=auth_version,
+            os_options=os_options,
+        )
+
+    # default username/password path
+    username = os.getenv("OS_USERNAME")
+    password = os.getenv("OS_PASSWORD")
+
+    if not username or not password:
+        raise ValueError(
+            "Username/password auth selected but OS_USERNAME / OS_PASSWORD is missing."
+        )
+
+    return swiftclient.Connection(
+        authurl=auth_url,
+        user=username,
+        key=password,
+        os_options=os_options,
+        auth_version=auth_version,
+    )
+
 
 class ObjectStoreBackend(StorageBackend):
     def __init__(
         self,
-        auth_url: str,
-        username: str,
-        password: str,
-        project_name: str,
-        project_id: str,
-        auth_type:str,
-        token: str,
-        storage_url: str,
-        user_domain_name: str,
-        project_domain_name: str,
-        region_name: str,
     ):
-        
-        os_options = {
-            "region_name": region_name,
-        }
-
-        if project_name:
-            os_options["project_name"] = project_name
-        if project_id:
-            os_options["project_id"] = project_id
-        if user_domain_name:
-            os_options["user_domain_name"] = user_domain_name
-        if project_domain_name:
-            os_options["project_domain_name"] = project_domain_name
-
-        if auth_type == "token":
-            self.conn = swiftclient.Connection(
-                preauthurl=storage_url,
-                preauthtoken=token,
-                auth_version="3",
-            )
-        else:
-            self.conn = swiftclient.Connection(
-                authurl=auth_url,
-                user=username,
-                key=password,
-                os_options=os_options,
-                auth_version="3",
-            )
+        self.conn = _build_swift_connection()
 
     def exists(self, path: str) -> bool:
         container, obj = parse_swift_uri(path)
