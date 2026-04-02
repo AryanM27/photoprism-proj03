@@ -60,7 +60,7 @@ def parse_swift_uri(uri: str) -> Tuple[str, str]:
     return container, object_name
 
 def _build_swift_connection():
-    auth_url = os.getenv["OS_AUTH_URL"]
+    auth_url = os.environ["OS_AUTH_URL"]
     auth_type = os.getenv("OS_AUTH_TYPE", "").strip()
     auth_version = os.getenv("OS_IDENTITY_API_VERSION", "3")
 
