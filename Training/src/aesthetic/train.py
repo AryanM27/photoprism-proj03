@@ -275,6 +275,7 @@
 
 import sys
 from pathlib import Path
+import time
 from src.datasets.uri_resolver import cache_manifest_from_uri
 from src.storage.checkpoint_sync import (
     sync_checkpoint_dir_from_remote,
@@ -288,7 +289,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import argparse
-import json
+# import json
 from pathlib import Path
 from src.storage.artifact_io import save_history_artifact, save_summary_artifact
 
@@ -298,7 +299,8 @@ from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
-from src.aesthetic.model import TinyAestheticRegressor
+# from src.aesthetic.model import TinyAestheticRegressor
+from src.aesthetic.model import build_aesthetic_model
 from src.common.checkpointing import (
     build_checkpoint_dir,
     checkpoint_exists,
@@ -368,21 +370,36 @@ def run_one_epoch(model, loader, criterion, optimizer, device, train: bool):
     }
 
 
-def save_history(history: list, artifact_dir: Path) -> Path:
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    history_file = artifact_dir / "history.json"
+# def save_history(history: list, artifact_dir: Path) -> Path:
+#     artifact_dir.mkdir(parents=True, exist_ok=True)
+#     history_file = artifact_dir / "history.json"
 
-    with history_file.open("w", encoding="utf-8") as f:
-        json.dump(history, f, indent=2)
+#     with history_file.open("w", encoding="utf-8") as f:
+#         json.dump(history, f, indent=2)
 
-    return history_file
+#     return history_file
 
 
 def train_aesthetic_baseline(config_path: str) -> dict:
     config = load_config(config_path)
+
     set_seed(config["runtime"]["seed"])
 
     device = get_device(config["runtime"]["device"])
+
+    train_cfg = config["training"]
+    learning_rate = train_cfg["learning_rate"]
+    batch_size = train_cfg["batch_size"]
+    epochs = train_cfg["epochs"]
+    weight_decay = train_cfg.get("weight_decay", 0.0)
+
+    print(f"Using aesthetic model type: {config['model']['type']}")
+    print(f"Using device: {device}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+
+    # if torch.cuda.is_available():
+    #     mlflow.log_param("gpu_name", torch.cuda.get_device_name(0))
 
     # train_dataset = AestheticDataset(
     #     manifest_path=config["dataset"]["manifest_path"],
@@ -413,18 +430,19 @@ def train_aesthetic_baseline(config_path: str) -> dict:
 
     train_loader = make_loader(
         train_dataset,
-        batch_size=config["training"]["batch_size"],
+        batch_size=batch_size,
         shuffle=True,
     )
     val_loader = make_loader(
         val_dataset,
-        batch_size=config["training"]["batch_size"],
+        batch_size=batch_size,
         shuffle=False,
     )
 
-    model = TinyAestheticRegressor().to(device)
+    model = build_aesthetic_model(config)
+    model = model.to(device)
     criterion = nn.MSELoss()
-    optimizer = Adam(model.parameters(), lr=config["training"]["learning_rate"])
+    optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     checkpoint_dir = build_checkpoint_dir(
         checkpoint_root=config["checkpoint"]["root_dir"],
@@ -468,18 +486,31 @@ def train_aesthetic_baseline(config_path: str) -> dict:
         best_val_loss = metadata.get("metric_value", best_val_loss)
         resumed_from_checkpoint = True
 
-    artifact_dir = Path(config["output"]["artifact_dir"])
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-
     # tracking_uri = configure_mlflow()
     tracking_uri = configure_mlflow(config)
 
+    training_start_time = time.time()
 
     with start_run(experiment_name=config["experiment_name"]):
         log_config_params(config)
+
+        mlflow.log_param("learning_rate", learning_rate)
+        mlflow.log_param("batch_size", batch_size)
+        mlflow.log_param("epochs", epochs)
+        mlflow.log_param("weight_decay", weight_decay)
+        mlflow.log_param("image_size", config["model"]["image_size"])
+        mlflow.log_param("dataset_version", config["dataset"]["dataset_version"])
+        mlflow.log_param("candidate_name", config.get("candidate_name", "unknown_candidate"))
+        mlflow.log_param("experiment_name", config.get("experiment_name", "unknown_experiment"))
+        mlflow.log_param("model_type", config["model"]["type"])
+        mlflow.log_param("model_version", config["model"]["version"])
+        mlflow.log_param("device", str(device))
+        mlflow.log_param("cuda_available", torch.cuda.is_available())
+        if torch.cuda.is_available():
+            mlflow.log_param("gpu_name", torch.cuda.get_device_name(0))
         mlflow.log_param("resumed_from_checkpoint", resumed_from_checkpoint)
 
-        if start_epoch > config["training"]["epochs"]:
+        if start_epoch > epochs:
             summary = {
                 "best_val_loss": best_val_loss,
                 "device": str(device),
@@ -498,7 +529,8 @@ def train_aesthetic_baseline(config_path: str) -> dict:
             log_artifact_if_exists(str(summary_file))
             return summary
 
-        for epoch in range(start_epoch, config["training"]["epochs"] + 1):
+        for epoch in range(start_epoch, epochs+1):
+            epoch_start_time = time.time()
             train_metrics = run_one_epoch(
                 model=model,
                 loader=train_loader,
@@ -566,11 +598,19 @@ def train_aesthetic_baseline(config_path: str) -> dict:
 
             if remote_checkpoint_prefix is not None:
                 sync_checkpoint_dir_to_remote(config, local_checkpoint_dir, remote_checkpoint_prefix)
+            
+            epoch_duration_sec = time.time() - epoch_start_time
+            print(f"Epoch {epoch} duration_sec: {epoch_duration_sec:.2f}")
+            mlflow.log_metric("epoch_duration_sec", epoch_duration_sec, step=epoch)
 
         history_file = None
         if config["output"].get("save_history", False):
             # history_file = save_history(history, artifact_dir)
             history_file = save_history_artifact(config, history)
+        
+        total_training_time_sec = time.time() - training_start_time
+        print(f"Total training time (sec): {total_training_time_sec:.2f}")
+        mlflow.log_metric("total_training_time_sec", total_training_time_sec)
 
         summary = {
             "best_val_loss": best_val_loss,
@@ -578,7 +618,8 @@ def train_aesthetic_baseline(config_path: str) -> dict:
             "mlflow_tracking_uri": tracking_uri,
             "checkpoint_dir": checkpoint_dir,
             "resumed_from_checkpoint": resumed_from_checkpoint,
-            "epochs_completed_in_this_run": max(0, config["training"]["epochs"] - start_epoch + 1),
+            "epochs_completed_in_this_run": max(0, epochs - start_epoch + 1),
+            "total_training_time_sec": total_training_time_sec,
         }
 
         # summary_file = artifact_dir / "training_summary.txt"
@@ -599,7 +640,7 @@ def train_aesthetic_baseline(config_path: str) -> dict:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train the aesthetic baseline model.")
+    parser = argparse.ArgumentParser(description="Train the aesthetic model candidate.")
     parser.add_argument(
         "--config",
         required=True,

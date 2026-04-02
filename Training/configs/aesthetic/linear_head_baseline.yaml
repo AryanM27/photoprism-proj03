@@ -1,35 +1,76 @@
 experiment_name: aesthetic_linear_head_baseline
+candidate_name: aesthetic_tiny_cnn_baseline_v1
 
 task: aesthetic
 
 dataset:
-  # manifest_path: data/manifests/aesthetic_sample.jsonl #add Training directory in front for local
   manifest_uri: swift://training-module-proj03/manifests/aesthetic_manifest_v1.jsonl
   dataset_version: aesthetic-sample-v1
 
 model:
+  type: tiny_cnn
   family: linear_head
   version: aesthetic-linear-v1
   image_size: 224
+  embedding_dim: 128
+  pretrained: false
 
 training:
   batch_size: 2
   epochs: 5
   learning_rate: 0.001
+  weight_decay: 0.0001
   resume: auto
 
 runtime:
   device: auto
   seed: 42
+  num_workers: 2
 
 checkpoint:
-  # root_dir: artifacts/checkpoints #add Training directory in front for local
-  root_dir: cache/checkpoints 
+  root_dir: cache/checkpoints
 
 output:
-  # artifact_dir: artifacts/aesthetic/linear_head_baseline #add Training directory in front for local
   artifact_dir: swift://training-module-proj03/artifacts/aesthetic/linear_head_baseline
   save_history: true
 
 storage:
   backend: object_store
+
+
+
+# experiment_name: aesthetic_linear_head_baseline
+
+# task: aesthetic
+
+# dataset:
+#   # manifest_path: data/manifests/aesthetic_sample.jsonl #add Training directory in front for local
+#   manifest_uri: swift://training-module-proj03/manifests/aesthetic_manifest_v1.jsonl
+#   dataset_version: aesthetic-sample-v1
+
+# model:
+#   family: linear_head
+#   version: aesthetic-linear-v1
+#   image_size: 224
+
+# training:
+#   batch_size: 2
+#   epochs: 5
+#   learning_rate: 0.001
+#   resume: auto
+
+# runtime:
+#   device: auto
+#   seed: 42
+
+# checkpoint:
+#   # root_dir: artifacts/checkpoints #add Training directory in front for local
+#   root_dir: cache/checkpoints 
+
+# output:
+#   # artifact_dir: artifacts/aesthetic/linear_head_baseline #add Training directory in front for local
+#   artifact_dir: swift://training-module-proj03/artifacts/aesthetic/linear_head_baseline
+#   save_history: true
+
+# storage:
+#   backend: object_store

@@ -1,0 +1,38 @@
+experiment_name: semantic_resnet18_projection_real_v1
+candidate_name: semantic_resnet18_projection_real_v1
+
+task: semantic
+
+dataset:
+  manifest_uri: swift://training-module-proj03/manifests/semantic_manifest_v1.jsonl
+  dataset_version: semantic-sample-v1
+
+model:
+  type: resnet18_projection
+  family: semantic_baseline
+  version: semantic-resnet18-projection-v1
+  image_size: 224
+  embedding_dim: 128
+  pretrained: true
+
+training:
+  batch_size: 2
+  epochs: 3
+  learning_rate: 0.0005
+  weight_decay: 0.0001
+  resume: auto
+
+runtime:
+  device: auto
+  seed: 42
+  num_workers: 2
+
+checkpoint:
+  root_dir: cache/checkpoints
+
+output:
+  artifact_dir: swift://training-module-proj03/artifacts/semantic/resnet18_projection_real_v1
+  save_history: true
+
+storage:
+  backend: object_store
