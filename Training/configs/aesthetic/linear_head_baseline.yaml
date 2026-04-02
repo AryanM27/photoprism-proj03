@@ -1,5 +1,5 @@
 experiment_name: aesthetic_linear_head_baseline
-candidate_name: aesthetic_tiny_cnn_baseline_v1
+candidate_name: aesthetic_tiny_cnn_baseline_v2
 
 task: aesthetic
 
@@ -10,7 +10,7 @@ dataset:
 model:
   type: tiny_cnn
   family: linear_head
-  version: aesthetic-linear-v1
+  version: aesthetic-linear-v2
   image_size: 224
   embedding_dim: 128
   pretrained: false
@@ -31,7 +31,7 @@ checkpoint:
   root_dir: cache/checkpoints
 
 output:
-  artifact_dir: swift://training-module-proj03/artifacts/aesthetic/linear_head_baseline
+  artifact_dir: swift://training-module-proj03/artifacts/aesthetic/linear_head_baseline_v2
   save_history: true
 
 storage:
