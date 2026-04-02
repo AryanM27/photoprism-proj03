@@ -5,6 +5,7 @@ import pytest
 def set_required_env_vars(monkeypatch):
     """Set env vars required by module-level imports before any test module is loaded."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://fake/fake")
+    monkeypatch.setenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
     monkeypatch.setenv("QDRANT_HOST", "localhost")
     monkeypatch.setenv("QDRANT_PORT", "6333")
     monkeypatch.setenv("QDRANT_COLLECTION", "test_collection")

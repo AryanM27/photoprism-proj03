@@ -13,7 +13,7 @@ Queues:
 import os
 from celery import Celery
 
-RABBITMQ_URL = os.environ.get("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+RABBITMQ_URL = os.environ["RABBITMQ_URL"]
 
 app = Celery(
     "data_pipeline",
@@ -22,6 +22,7 @@ app = Celery(
         "src.data_pipeline.workers.ingestion_worker",
         "src.data_pipeline.workers.validation_worker",
         "src.data_pipeline.workers.embedding_worker",
+        "src.data_pipeline.workers.backfill_worker",
     ],
 )
 
@@ -42,5 +43,6 @@ app.conf.update(
             "queue": "validation"
         },
         "src.data_pipeline.workers.embedding_worker.embed_image": {"queue": "embedding"},
+        "src.data_pipeline.workers.backfill_worker.reprocess_image": {"queue": "backfill"},
     },
 )
