@@ -3,7 +3,7 @@ pipeline.py — Trigger backfill re-embedding for validated images.
 
 trigger_backfill() queries all validated images and either:
   - dry_run=True:  returns the list of jobs without writing to DB or queuing
-  - dry_run=False: inserts ProcessingJob rows and publishes to backfill queue via Publisher
+  - dry_run=False: inserts ProcessingJob rows and dispatches Celery tasks
 """
 import logging
 import uuid
@@ -48,19 +48,14 @@ def trigger_backfill(db_session, model_version: str, dry_run: bool = False) -> l
 
     if not dry_run:
         db_session.commit()
-        # Deferred import to avoid a circular import: pipeline.py → publisher.py would
-        # otherwise create a cycle via the ingestion package's __init__.
-        from src.data_pipeline.ingestion.publisher import Publisher
-        # If Publisher.__enter__ raises (e.g. broker unreachable), jobs are already
-        # committed with status="queued" but nothing will be published. Log a warning so
-        # operators can detect and requeue them; then re-raise so the caller knows.
+        # Deferred import to avoid circular imports at module level.
+        from src.data_pipeline.workers.backfill_worker import reprocess_image
         try:
-            with Publisher() as pub:
-                for job in jobs:
-                    pub.publish_backfill(job["image_id"], model_version)
+            for job in jobs:
+                reprocess_image.delay(job["image_id"], model_version)
         except Exception as pub_exc:
             logger.warning(
-                "Jobs committed with status='queued' but publishing failed (%d jobs, model=%s): %s",
+                "Jobs committed with status='queued' but dispatching failed (%d jobs, model=%s): %s",
                 len(jobs),
                 model_version,
                 pub_exc,
