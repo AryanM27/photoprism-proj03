@@ -20,6 +20,7 @@ def test_validation_worker_dispatches_embedding_on_success(mock_session_cls, moc
     with patch("src.data_pipeline.validation.checks.run_checks", return_value=(True, None)), \
          patch("src.data_pipeline.validation.normalizer.extract_metadata", return_value=MagicMock()):
         from src.data_pipeline.workers.validation_worker import process_validation_event
-        process_validation_event({"image_id": image_id, "storage_path": "raw/abc123.jpg"})
+        process_validation_event.run({"image_id": image_id, "storage_path": "raw/abc123.jpg"})
 
     mock_embed.delay.assert_called_once_with(image_id)
+    fake_session.commit.assert_called()

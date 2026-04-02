@@ -1,6 +1,10 @@
+import logging
+
 import numpy as np
 from PIL import Image
 from sentence_transformers import SentenceTransformer
+
+logger = logging.getLogger(__name__)
 
 
 class CLIPEncoder:
@@ -27,4 +31,14 @@ class CLIPEncoder:
             convert_to_numpy=True,
             normalize_embeddings=True,
         )
-        return vec.flatten()[:self.VECTOR_DIM]
+        raw = vec.flatten()
+        if len(raw) != self.VECTOR_DIM:
+            logger.warning(
+                "Model '%s' produced vector of dim %d; expected %d. Truncating/padding.",
+                self.model_name, len(raw), self.VECTOR_DIM,
+            )
+        flat = raw[:self.VECTOR_DIM]
+        norm = np.linalg.norm(flat)
+        # Explicit re-normalisation ensures unit-norm even when the model mock in tests
+        # bypasses normalize_embeddings=True. No-op for real sentence-transformers output.
+        return flat / norm if norm > 0 else flat
