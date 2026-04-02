@@ -1,8 +1,4 @@
-# Serving/infra/provision_vm.py
-# Provisions a standalone VM on KVM@TACC for the serving layer.
-# Fully independent — no dependency on Data team's VM.
-# Run this from the Chameleon Jupyter environment.
-# Resource names use proj03 suffix per course naming policy.
+
 
 from chi import server, context, lease, network
 import chi, os, datetime
