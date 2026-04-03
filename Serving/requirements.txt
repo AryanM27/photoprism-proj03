@@ -8,3 +8,4 @@ qdrant-client
 prometheus-fastapi-instrumentator
 python-multipart
 pydantic
+onnxruntime
