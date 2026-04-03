@@ -2,35 +2,43 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:18
+    image: postgres:16
     container_name: training-postgres
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: mlflowuser
-      POSTGRES_PASSWORD: mlflowpass
-      POSTGRES_DB: mlflowdb
+      POSTGRES_USER: ${MLFLOW_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${MLFLOW_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${MLFLOW_POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MLFLOW_POSTGRES_USER} -d ${MLFLOW_POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.9.0
     container_name: training-mlflow
-    restart: always
+    restart: unless-stopped
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       MLFLOW_SERVER_ALLOWED_HOSTS: "*"
       MLFLOW_LOGGING_LEVEL: INFO
     ports:
-      - "5000:5000"
+      - "${MLFLOW_PORT}:5000"
     command: >
-      /bin/sh -c "pip install psycopg2-binary &&
+      /bin/sh -c "
+      pip install psycopg2-binary &&
       mlflow server
-      --backend-store-uri postgresql://mlflowuser:mlflowpass@postgres/mlflowdb
+      --backend-store-uri postgresql://${MLFLOW_POSTGRES_USER}:${MLFLOW_POSTGRES_PASSWORD}@postgres:5432/${MLFLOW_POSTGRES_DB}
       --host 0.0.0.0
-      --port 5000"
+      --port 5000
+      "
 
 volumes:
   postgres_data:
