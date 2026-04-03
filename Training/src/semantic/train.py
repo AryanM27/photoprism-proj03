@@ -277,6 +277,7 @@
 import sys
 from pathlib import Path
 import time
+from src.semantic.evaluate import run_semantic_evaluation
 from src.datasets.uri_resolver import cache_manifest_from_uri
 from src.storage.checkpoint_sync import (
     sync_checkpoint_dir_from_remote,
@@ -553,11 +554,20 @@ def train_semantic_baseline(config_path: str) -> dict:
 
             global_step += len(train_loader)
 
+            more_epoch_metrics =  run_semantic_evaluation(config_path=config_path)
+
             epoch_metrics = {
                 "train_contrastive_loss": train_metrics["contrastive_loss"],
                 "val_contrastive_loss": val_metrics["contrastive_loss"],
+                "i2t_recall_at_1": more_epoch_metrics["i2t_recall_at_1"],
+                "i2t_recall_at_5": more_epoch_metrics["i2t_recall_at_5"],
+                "t2i_recall_at_1": more_epoch_metrics["t2i_recall_at_1"],
+                "t2i_recall_at_5": more_epoch_metrics["t2i_recall_at_5"],
+                "mean_i2t_rank": more_epoch_metrics["mean_i2t_rank"],
+                "mean_t2i_rank": more_epoch_metrics["mean_t2i_rank"],
                 "epoch": epoch,
             }
+
             log_metrics(epoch_metrics)
 
             history.append(

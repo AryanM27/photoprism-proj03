@@ -4,8 +4,8 @@ candidate_name: semantic_resnet18_projection_real_v1
 task: semantic
 
 dataset:
-  manifest_uri: swift://training-module-proj03/manifests/semantic_manifest_v1.jsonl
-  dataset_version: semantic-sample-v1
+  manifest_uri: swift://training-module-proj03/data/semantic_flickr30k/manifests/semantic_manifest_v1.jsonl
+  dataset_version: semantic-flickr30k-v1
 
 model:
   type: resnet18_projection

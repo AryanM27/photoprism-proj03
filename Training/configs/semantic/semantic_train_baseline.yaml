@@ -1,11 +1,11 @@
-experiment_name: semantic_train_baseline
+experiment_name: semantic_tiny_cnn_baseline_v1
 candidate_name: semantic_tiny_cnn_baseline_v1
 
 task: semantic
 
 dataset:
-  manifest_uri: swift://training-module-proj03/manifests/semantic_manifest_v1.jsonl
-  dataset_version: semantic-sample-v1
+  manifest_uri: swift://training-module-proj03/data/semantic_flickr30k/manifests/semantic_manifest_v1.jsonl
+  dataset_version: semantic-flickr30k-v1
 
 model:
   type: tiny_cnn
@@ -31,7 +31,7 @@ checkpoint:
   root_dir: cache/checkpoints
 
 output:
-  artifact_dir: swift://training-module-proj03/artifacts/semantic/semantic_train_baseline
+  artifact_dir: swift://training-module-proj03/artifacts/semantic/semantic_tiny_cnn_baseline_v1
   save_history: true
 
 storage:

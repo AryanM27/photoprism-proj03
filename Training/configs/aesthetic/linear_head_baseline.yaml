@@ -4,8 +4,8 @@ candidate_name: aesthetic_tiny_cnn_baseline_v2
 task: aesthetic
 
 dataset:
-  manifest_uri: swift://training-module-proj03/manifests/aesthetic_manifest_v1.jsonl
-  dataset_version: aesthetic-sample-v1
+  manifest_uri: swift://training-module-proj03/data/aeshetic_ava/manifests/aesthetic_manifest_v1.jsonl
+  dataset_version: aesthetic-ava-v1
 
 model:
   type: tiny_cnn
@@ -36,6 +36,9 @@ output:
 
 storage:
   backend: object_store
+
+evaluation:
+  metrics: [mse, mae]
 
 
 

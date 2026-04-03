@@ -276,6 +276,7 @@
 import sys
 from pathlib import Path
 import time
+from src.aesthetic.evaluate import evaluate_model
 from src.datasets.uri_resolver import cache_manifest_from_uri
 from src.storage.checkpoint_sync import (
     sync_checkpoint_dir_from_remote,
@@ -607,6 +608,8 @@ def train_aesthetic_baseline(config_path: str) -> dict:
         if config["output"].get("save_history", False):
             # history_file = save_history(history, artifact_dir)
             history_file = save_history_artifact(config, history)
+
+        mlflow.log_metric("best_val_loss", best_val_loss)
         
         total_training_time_sec = time.time() - training_start_time
         print(f"Total training time (sec): {total_training_time_sec:.2f}")

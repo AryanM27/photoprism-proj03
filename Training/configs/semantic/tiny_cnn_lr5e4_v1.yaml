@@ -1,16 +1,16 @@
-experiment_name: semantic_tiny_cnn_lr5e4_v1
-candidate_name: semantic_tiny_cnn_lr5e4_v1
+experiment_name: semantic_tiny_cnn_baseline_v2
+candidate_name: semantic_tiny_cnn_baseline_v2
 
 task: semantic
 
 dataset:
-  manifest_uri: swift://training-module-proj03/manifests/semantic_manifest_v1.jsonl
-  dataset_version: semantic-sample-v1
+  manifest_uri: swift://training-module-proj03/data/semantic_flickr30k/manifests/semantic_manifest_v1.jsonl
+  dataset_version: semantic-flickr30k-v1
 
 model:
   type: tiny_cnn
   family: semantic_baseline
-  version: semantic-baseline-v1
+  version: semantic-baseline-v2
   image_size: 224
   embedding_dim: 128
   pretrained: false
@@ -31,7 +31,7 @@ checkpoint:
   root_dir: cache/checkpoints
 
 output:
-  artifact_dir: swift://training-module-proj03/artifacts/semantic/tiny_cnn_lr5e4_v1
+  artifact_dir: swift://training-module-proj03/artifacts/semantic/semantic_tiny_cnn_baseline_v2
   save_history: true
 
 storage:
