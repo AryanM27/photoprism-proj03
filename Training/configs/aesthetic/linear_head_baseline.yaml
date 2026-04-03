@@ -1,4 +1,4 @@
-experiment_name: aesthetic_linear_head_baseline
+experiment_name: aesthetic_linear_head_baseline_v2
 candidate_name: aesthetic_tiny_cnn_baseline_v2
 
 task: aesthetic

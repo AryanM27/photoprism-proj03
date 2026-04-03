@@ -1,4 +1,4 @@
-experiment_name: semantic_tiny_cnn_baseline_v1
+experiment_name: semantic_tiny_cnn_baseline_v1_fresh
 candidate_name: semantic_tiny_cnn_baseline_v1
 
 task: semantic
