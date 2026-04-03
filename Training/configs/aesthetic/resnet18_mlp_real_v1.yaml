@@ -6,6 +6,9 @@ task: aesthetic
 dataset:
   manifest_uri: swift://training-module-proj03/data/aesthetic_ava/manifests/aesthetic_manifest_v1.jsonl
   dataset_version: aesthetic-ava-v1
+  start_index: 0
+  max_records: 30000
+  subset_seed: 42
 
 model:
   type: resnet18_mlp
@@ -21,6 +24,8 @@ training:
   learning_rate: 0.0005
   weight_decay: 0.0001
   resume: auto
+  advance_chunk_on_resume: false
+  log_every_n_batches: 100
 
 runtime:
   device: auto

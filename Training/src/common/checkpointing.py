@@ -53,6 +53,10 @@ def build_checkpoint_metadata(
     metric_value: Optional[float],
     dataset_version: Optional[str],
     config_path: Optional[str],
+    chunk_start_index: Optional[int] = None,
+    chunk_max_records: Optional[int] = None,
+    chunk_subset_seed: Optional[int] = None,
+    next_start_index: Optional[int] = None,
 ) -> Dict[str, Any]:
     return {
         "saved_at": _timestamp(),
@@ -65,6 +69,10 @@ def build_checkpoint_metadata(
         "metric_value": metric_value,
         "dataset_version": dataset_version,
         "config_path": config_path,
+        "chunk_start_index": chunk_start_index,
+        "chunk_max_records": chunk_max_records,
+        "chunk_subset_seed": chunk_subset_seed,
+        "next_start_index": next_start_index,
     }
 
 
@@ -82,6 +90,10 @@ def save_checkpoint(
     config_path: Optional[str] = None,
     is_best: bool = False,
     save_epoch_copy: bool = True,
+    chunk_start_index: Optional[int] = None,
+    chunk_max_records: Optional[int] = None,
+    chunk_subset_seed: Optional[int] = None,
+    next_start_index: Optional[int] = None,
 ) -> Dict[str, str]:
     checkpoint_root = Path(checkpoint_dir)
     _ensure_dir(checkpoint_root)
@@ -99,6 +111,10 @@ def save_checkpoint(
         metric_value=metric_value,
         dataset_version=dataset_version,
         config_path=config_path,
+        chunk_start_index=chunk_start_index,
+        chunk_max_records=chunk_max_records,
+        chunk_subset_seed=chunk_subset_seed,
+        next_start_index=next_start_index,
     )
 
     _atomic_save_torch(state, latest_ckpt)

@@ -416,29 +416,36 @@ def train_aesthetic_baseline(config_path: str) -> dict:
     manifest_ref = config["dataset"].get("manifest_uri") or config["dataset"]["manifest_path"]
     manifest_path = cache_manifest_from_uri(config, manifest_ref)
 
+    dataset_cfg = config["dataset"]
+
+    start_index = dataset_cfg.get("start_index", 0)
+    max_records = dataset_cfg.get("max_records", None)
+    subset_seed = dataset_cfg.get("subset_seed", None)
+
+    print(f"\n===== DATASET CONFIG =====")
+    print(f"start_index: {start_index}")
+    print(f"max_records: {max_records}")
+    print(f"subset_seed: {subset_seed}")
+
     train_dataset = AestheticDataset(
         manifest_path=manifest_path,
         config=config,
         image_size=config["model"]["image_size"],
         split="train",
+        start_index=start_index,
+        max_records=max_records,
     )
     val_dataset = AestheticDataset(
         manifest_path=manifest_path,
         config=config,
         image_size=config["model"]["image_size"],
         split="val",
+        start_index=start_index,
+        max_records=5000,
     )
 
-    train_loader = make_loader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-    )
-    val_loader = make_loader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-    )
+    print(f"Train samples: {len(train_dataset)}")
+    print(f"Val samples: {len(val_dataset)}")
 
     model = build_aesthetic_model(config)
     model = model.to(device)
@@ -486,9 +493,38 @@ def train_aesthetic_baseline(config_path: str) -> dict:
         global_step = state["global_step"]
         best_val_loss = metadata.get("metric_value", best_val_loss)
         resumed_from_checkpoint = True
+        if config["training"].get("advance_chunk_on_resume", False):
+            next_start = metadata.get("next_start_index")
+
+        if next_start is not None:
+            print(f"\n>>> ADVANCING TO NEXT CHUNK: {next_start}")
+
+            start_index = next_start
+
+            train_dataset = AestheticDataset(
+                manifest_path=manifest_path,
+                split="train",
+                image_size=config["model"]["image_size"],
+                start_index=start_index,
+                max_records=max_records,
+                subset_seed=subset_seed,
+            )
+
+            print(f"New Train samples: {len(train_dataset)}")
 
     # tracking_uri = configure_mlflow()
     tracking_uri = configure_mlflow(config)
+
+    train_loader = make_loader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+    )
+    val_loader = make_loader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+    )
 
     training_start_time = time.time()
 
@@ -580,6 +616,8 @@ def train_aesthetic_baseline(config_path: str) -> dict:
             is_best = val_metrics["mse_loss"] < best_val_loss
             if is_best:
                 best_val_loss = val_metrics["mse_loss"]
+            
+            next_start_index = start_index + max_records if max_records else None
 
             save_checkpoint(
                 checkpoint_dir=checkpoint_dir,
@@ -595,6 +633,10 @@ def train_aesthetic_baseline(config_path: str) -> dict:
                 config_path=config_path,
                 is_best=is_best,
                 save_epoch_copy=True,
+                chunk_start_index=start_index,
+                chunk_max_records=max_records,
+                chunk_subset_seed=subset_seed,
+                next_start_index=next_start_index,
             )
 
             if remote_checkpoint_prefix is not None:
