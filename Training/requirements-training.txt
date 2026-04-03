@@ -1,8 +1,8 @@
 pyyaml
 numpy
-torch
+# torch
 pillow
-torchvision
+# torchvision
 open_clip_torch
 mlflow
 

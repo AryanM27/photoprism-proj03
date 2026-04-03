@@ -1,0 +1,33 @@
+FROM rocm/pytorch:rocm6.3_ubuntu24.04_py3.12_pytorch_release_2.4.0
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HF_HOME=/tmp/hf \
+    TORCH_HOME=/tmp/torch
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    ca-certificates \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libjpeg-dev \
+    libpng-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# IMPORTANT: do not reinstall torch here (ROCm base already has it)
+COPY Training/requirements-training.txt /app/Training/requirements-training.txt
+
+RUN python -m pip install --upgrade pip setuptools wheel && \
+    pip install -r /app/Training/requirements-training.txt
+
+COPY . /app
+
+WORKDIR /app/Training
+
+CMD ["bash"]

@@ -59,3 +59,5 @@ Training/mlruns_old/
 Training/artifacts_old/
 Training/_pycache_/
 Training/src/**/_pycache_/
+Training/ava_dataset/*
+Training/data/processed/*
