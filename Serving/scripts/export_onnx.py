@@ -7,8 +7,8 @@ import onnxruntime as ort
 
 
 MODEL_NAME = os.getenv("MODEL_NAME", "ViT-B-32")
-ONNX_TEXT_PATH = os.getenv("ONNX_TEXT_PATH", "checkpoints/text_encoder.onnx")
-ONNX_IMAGE_PATH = os.getenv("ONNX_IMAGE_PATH", "checkpoints/image_encoder.onnx")
+ONNX_TEXT_PATH = os.getenv("ONNX_TEXT_PATH", "/serving/onnx_models/text_encoder.onnx")
+ONNX_IMAGE_PATH = os.getenv("ONNX_IMAGE_PATH", "/serving/onnx_models/image_encoder.onnx")
 
 
 class TextEncoder(nn.Module):
