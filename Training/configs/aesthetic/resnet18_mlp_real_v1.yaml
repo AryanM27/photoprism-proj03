@@ -26,6 +26,7 @@ training:
   resume: auto
   advance_chunk_on_resume: true
   log_every_n_batches: 100
+  carry_optimizer_to_next_chunk: true
 
 runtime:
   device: auto

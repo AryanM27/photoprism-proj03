@@ -485,34 +485,99 @@ def train_aesthetic_baseline(config_path: str) -> dict:
     else:
         raise ValueError(f"Invalid resume mode: {resume_mode}")
 
+    # if should_resume and checkpoint_exists(checkpoint_dir):
+    #     print("Will be resuming from checkpoint")
+    #     state, metadata = load_latest_checkpoint(checkpoint_dir, map_location=str(device))
+
+    #     model.load_state_dict(state["model_state_dict"])
+    #     optimizer.load_state_dict(state["optimizer_state_dict"])
+    #     start_epoch = state["epoch"] + 1
+    #     global_step = state["global_step"]
+    #     best_val_loss = metadata.get("metric_value", best_val_loss)
+    #     resumed_from_checkpoint = True
+    #     if config["training"].get("advance_chunk_on_resume", False):
+    #         next_start = metadata.get("next_start_index")
+
+    #     if next_start is not None:
+    #         print(f"\n>>> ADVANCING TO NEXT CHUNK: {next_start}")
+
+    #         start_index = next_start
+
+    #         train_dataset = AestheticDataset(
+    #             manifest_path=manifest_path,
+    #             split="train",
+    #             config=config,
+    #             image_size=config["model"]["image_size"],
+    #             start_index=start_index,
+    #             max_records=max_records,
+    #             subset_seed=subset_seed,
+    #         )
+
+    #         print(f"New Train samples: {len(train_dataset)}")
+
     if should_resume and checkpoint_exists(checkpoint_dir):
-        print("Will be resuming from checkpoint")
+        print("Will be resuming from checkpoint", flush=True)
         state, metadata = load_latest_checkpoint(checkpoint_dir, map_location=str(device))
+
         model.load_state_dict(state["model_state_dict"])
-        optimizer.load_state_dict(state["optimizer_state_dict"])
-        start_epoch = state["epoch"] + 1
-        global_step = state["global_step"]
-        best_val_loss = metadata.get("metric_value", best_val_loss)
         resumed_from_checkpoint = True
-        if config["training"].get("advance_chunk_on_resume", False):
+
+        advance_chunk = config["training"].get("advance_chunk_on_resume", False)
+
+        if advance_chunk:
             next_start = metadata.get("next_start_index")
 
-        if next_start is not None:
-            print(f"\n>>> ADVANCING TO NEXT CHUNK: {next_start}")
+            if next_start is not None:
+                print(f"\n>>> ADVANCING TO NEXT CHUNK: {next_start}", flush=True)
 
-            start_index = next_start
+                start_index = next_start
 
-            train_dataset = AestheticDataset(
-                manifest_path=manifest_path,
-                split="train",
-                config=config,
-                image_size=config["model"]["image_size"],
-                start_index=start_index,
-                max_records=max_records,
-                subset_seed=subset_seed,
-            )
+                # rebuild train dataset for next chunk
+                train_dataset = AestheticDataset(
+                    manifest_path=manifest_path,
+                    split="train",
+                    config=config,
+                    image_size=config["model"]["image_size"],
+                    start_index=start_index,
+                    max_records=max_records,
+                    subset_seed=subset_seed,
+                )
 
-            print(f"New Train samples: {len(train_dataset)}")
+                print(f"New Train samples: {len(train_dataset)}", flush=True)
+
+                # train_loader = DataLoader(
+                #     train_dataset,
+                #     batch_size=batch_size,
+                #     shuffle=True,
+                #     num_workers=num_workers,
+                #     pin_memory=torch.cuda.is_available(),
+                # )
+
+                # IMPORTANT: reset epoch schedule for the new chunk
+                start_epoch = 1
+                global_step = 0
+                best_val_loss = float("inf")
+
+                # optional: carry optimizer state forward
+                if config["training"].get("carry_optimizer_to_next_chunk", True):
+                    if "optimizer_state_dict" in state:
+                        optimizer.load_state_dict(state["optimizer_state_dict"])
+                else:
+                    print("Not carrying optimizer state to next chunk", flush=True)
+
+            else:
+                print("advance_chunk_on_resume=True but no next_start_index found; resuming same chunk", flush=True)
+
+                optimizer.load_state_dict(state["optimizer_state_dict"])
+                start_epoch = state["epoch"] + 1
+                global_step = state["global_step"]
+                best_val_loss = metadata.get("metric_value", best_val_loss)
+
+        else:
+            optimizer.load_state_dict(state["optimizer_state_dict"])
+            start_epoch = state["epoch"] + 1
+            global_step = state["global_step"]
+            best_val_loss = metadata.get("metric_value", best_val_loss)
 
     # tracking_uri = configure_mlflow()
     tracking_uri = configure_mlflow(config)
