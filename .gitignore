@@ -17,6 +17,10 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 
+# pytest
+.pytest_cache/
+Data/.pytest_cache/
+
 # Data (tracked by DVC, not git)
 Data/data/raw/
 Data/data/interim/
@@ -27,6 +31,8 @@ Data/data/feedback/
 # DVC internal
 .dvc/tmp/
 .dvc/cache/
+Data/.dvc/tmp/
+Data/.dvc/cache/
 
 # Docker secrets
 Data/docker/.env
