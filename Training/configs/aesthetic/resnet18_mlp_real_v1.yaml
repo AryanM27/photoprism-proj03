@@ -4,7 +4,7 @@ candidate_name: aesthetic_resnet18_mlp_real_v1
 task: aesthetic
 
 dataset:
-  manifest_uri: swift://training-module-proj03/data/aeshetic_ava/manifests/aesthetic_manifest_v1.jsonl
+  manifest_uri: swift://training-module-proj03/data/aesthetic_ava/manifests/aesthetic_manifest_v1.jsonl
   dataset_version: aesthetic-ava-v1
 
 model:
