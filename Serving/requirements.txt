@@ -9,3 +9,4 @@ prometheus-fastapi-instrumentator
 python-multipart
 pydantic
 onnxruntime
+onnxscript
