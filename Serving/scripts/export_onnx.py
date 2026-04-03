@@ -50,7 +50,7 @@ def export():
             input_names=["tokens"],
             output_names=["embeddings"],
             dynamic_axes={"tokens": {0: "batch"}, "embeddings": {0: "batch"}},
-            opset_version=14,
+            opset_version=18,
         )
     print(f"Text encoder exported to {ONNX_TEXT_PATH}")
 
@@ -64,7 +64,7 @@ def export():
             input_names=["image"],
             output_names=["embeddings"],
             dynamic_axes={"image": {0: "batch"}, "embeddings": {0: "batch"}},
-            opset_version=14,
+            opset_version=18,
         )
     print(f"Image encoder exported to {ONNX_IMAGE_PATH}")
 
