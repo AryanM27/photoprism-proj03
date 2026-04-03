@@ -20,13 +20,12 @@ services:
       - MODEL_NAME=ViT-B-32
       - DEVICE=auto
       - USE_ONNX=true
-      - ONNX_TEXT_PATH=/onnx_models/text_encoder.onnx
-      - ONNX_IMAGE_PATH=/onnx_models/image_encoder.onnx
+      - ONNX_TEXT_PATH=/serving/onnx_models/text_encoder.onnx
+      - ONNX_IMAGE_PATH=/serving/onnx_models/image_encoder.onnx
     depends_on:
       - qdrant
     volumes:
       - ./checkpoints:/checkpoints
-      - ~/onnx_models:/onnx_models
     deploy:
       replicas: 3
 
