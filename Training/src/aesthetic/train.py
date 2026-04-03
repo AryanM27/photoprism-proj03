@@ -505,6 +505,7 @@ def train_aesthetic_baseline(config_path: str) -> dict:
             train_dataset = AestheticDataset(
                 manifest_path=manifest_path,
                 split="train",
+                config=config,
                 image_size=config["model"]["image_size"],
                 start_index=start_index,
                 max_records=max_records,
