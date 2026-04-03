@@ -486,6 +486,7 @@ def train_aesthetic_baseline(config_path: str) -> dict:
         raise ValueError(f"Invalid resume mode: {resume_mode}")
 
     if should_resume and checkpoint_exists(checkpoint_dir):
+        print("Will be resuming from checkpoint")
         state, metadata = load_latest_checkpoint(checkpoint_dir, map_location=str(device))
         model.load_state_dict(state["model_state_dict"])
         optimizer.load_state_dict(state["optimizer_state_dict"])
