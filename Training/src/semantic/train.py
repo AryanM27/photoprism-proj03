@@ -418,31 +418,36 @@ def train_semantic_baseline(config_path: str) -> dict:
     manifest_ref = config["dataset"].get("manifest_uri") or config["dataset"]["manifest_path"]
     manifest_path = cache_manifest_from_uri(config, manifest_ref)
 
+    dataset_cfg = config["dataset"]
+
+    start_index = dataset_cfg.get("start_index", 0)
+    max_records = dataset_cfg.get("max_records", None)
+    subset_seed = dataset_cfg.get("subset_seed", None)
+
+    print(f"\n===== DATASET CONFIG =====")
+    print(f"start_index: {start_index}")
+    print(f"max_records: {max_records}")
+    print(f"subset_seed: {subset_seed}")
+
     train_dataset = SemanticRetrievalDataset(
         manifest_path=manifest_path,
         config=config,
         image_size=config["model"]["image_size"],
         split="train",
+        start_index=start_index,
+        max_records=max_records,
     )
     val_dataset = SemanticRetrievalDataset(
         manifest_path=manifest_path,
         config=config,
         image_size=config["model"]["image_size"],
         split="val",
+        start_index=start_index,
+        max_records=250,
     )
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        collate_fn=collate_fn,
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-    )
+    print(f"Train samples: {len(train_dataset)}")
+    print(f"Val samples: {len(val_dataset)}")
 
     model = build_semantic_model(config).to(device)
 
@@ -481,17 +486,92 @@ def train_semantic_baseline(config_path: str) -> dict:
     else:
         raise ValueError(f"Invalid resume mode: {resume_mode}")
 
+    # if should_resume and checkpoint_exists(checkpoint_dir):
+    #     state, metadata = load_latest_checkpoint(checkpoint_dir, map_location=str(device))
+    #     model.load_state_dict(state["model_state_dict"])
+    #     optimizer.load_state_dict(state["optimizer_state_dict"])
+    #     start_epoch = state["epoch"] + 1
+    #     global_step = state["global_step"]
+    #     best_val_loss = metadata.get("metric_value", best_val_loss)
+    #     resumed_from_checkpoint = True
+
     if should_resume and checkpoint_exists(checkpoint_dir):
+        print("Will be resuming from checkpoint", flush=True)
         state, metadata = load_latest_checkpoint(checkpoint_dir, map_location=str(device))
+
         model.load_state_dict(state["model_state_dict"])
-        optimizer.load_state_dict(state["optimizer_state_dict"])
-        start_epoch = state["epoch"] + 1
-        global_step = state["global_step"]
-        best_val_loss = metadata.get("metric_value", best_val_loss)
         resumed_from_checkpoint = True
+
+        advance_chunk = config["training"].get("advance_chunk_on_resume", False)
+
+        if advance_chunk:
+            next_start = metadata.get("next_start_index")
+
+            if next_start is not None:
+                print(f"\n>>> ADVANCING TO NEXT CHUNK: {next_start}", flush=True)
+
+                start_index = next_start
+
+                # rebuild train dataset for next chunk
+                train_dataset = SemanticRetrievalDataset(
+                    manifest_path=manifest_path,
+                    split="train",
+                    config=config,
+                    image_size=config["model"]["image_size"],
+                    start_index=start_index,
+                    max_records=max_records,
+                    subset_seed=subset_seed,
+                )
+
+                print(f"New Train samples: {len(train_dataset)}", flush=True)
+
+                # train_loader = DataLoader(
+                #     train_dataset,
+                #     batch_size=batch_size,
+                #     shuffle=True,
+                #     num_workers=num_workers,
+                #     pin_memory=torch.cuda.is_available(),
+                # )
+
+                # IMPORTANT: reset epoch schedule for the new chunk
+                start_epoch = 1
+                global_step = 0
+                best_metric = float("-inf")
+
+                # optional: carry optimizer state forward
+                if config["training"].get("carry_optimizer_to_next_chunk", True):
+                    if "optimizer_state_dict" in state:
+                        optimizer.load_state_dict(state["optimizer_state_dict"])
+                else:
+                    print("Resetting optimizer state for next chunk", flush=True)
+
+            else:
+                print("advance_chunk_on_resume=True but no next_start_index found; resuming same chunk", flush=True)
+
+                optimizer.load_state_dict(state["optimizer_state_dict"])
+                start_epoch = state["epoch"] + 1
+                global_step = state["global_step"]
+
+        else:
+            optimizer.load_state_dict(state["optimizer_state_dict"])
+            start_epoch = state["epoch"] + 1
+            global_step = state["global_step"]
 
     # tracking_uri = configure_mlflow()
     tracking_uri = configure_mlflow(config)
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        collate_fn=collate_fn,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
 
     training_start_time = time.time()
 
@@ -589,6 +669,8 @@ def train_semantic_baseline(config_path: str) -> dict:
             if is_best:
                 best_val_loss = val_metrics["contrastive_loss"]
 
+            next_start_index = start_index + max_records if max_records else None
+
             save_checkpoint(
                 checkpoint_dir=checkpoint_dir,
                 state=state,
@@ -603,6 +685,10 @@ def train_semantic_baseline(config_path: str) -> dict:
                 config_path=config_path,
                 is_best=is_best,
                 save_epoch_copy=True,
+                chunk_start_index=start_index,
+                chunk_max_records=max_records,
+                chunk_subset_seed=subset_seed,
+                next_start_index=next_start_index,
             )
 
             if remote_checkpoint_prefix is not None:
@@ -615,6 +701,8 @@ def train_semantic_baseline(config_path: str) -> dict:
         history_file = None
         if config["output"].get("save_history", False):
             history_file = save_history_artifact(config, history)
+        
+        mlflow.log_metric("best_contrastive_loss", best_val_loss)
 
         total_training_time_sec = time.time() - training_start_time
         print(f"Total training time (sec): {total_training_time_sec:.2f}")
@@ -639,6 +727,7 @@ def train_semantic_baseline(config_path: str) -> dict:
         # if history_file is not None:
         #     log_artifact_if_exists(str(history_file))
         summary_file = save_summary_artifact(config, summary)
+
         log_artifact_if_exists(str(summary_file))
         if history_file is not None:
             log_artifact_if_exists(str(history_file))

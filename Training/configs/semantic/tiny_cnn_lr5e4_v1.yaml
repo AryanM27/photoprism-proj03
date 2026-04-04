@@ -6,6 +6,9 @@ task: semantic
 dataset:
   manifest_uri: swift://training-module-proj03/data/semantic_flickr30k/manifests/semantic_manifest_v1.jsonl
   dataset_version: semantic-flickr30k-v1
+  start_index: 0
+  max_records: 1000
+  subset_seed: 42
 
 model:
   type: tiny_cnn
@@ -21,6 +24,9 @@ training:
   learning_rate: 0.0005
   weight_decay: 0.0001
   resume: auto
+  advance_chunk_on_resume: true
+  carry_optimizer_to_next_chunk: true
+  log_every_n_batches: 50
 
 runtime:
   device: auto
