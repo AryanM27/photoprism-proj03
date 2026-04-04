@@ -68,7 +68,7 @@ def _resolve_remote_checkpoint_prefix(config: dict) -> Optional[str]:
 
 def _resolve_checkpoint_path(config: dict) -> Optional[str]:
     checkpoint_dir = build_checkpoint_dir(
-        root_dir=config["checkpoint"]["root_dir"],
+        checkpoint_root=config["checkpoint"]["root_dir"],
         family=config["model"]["family"],
         version=config["model"]["version"],
     )

@@ -40,6 +40,7 @@ def build_checkpoint_dir(
     Training/artifacts/checkpoints/aesthetic/linear_head/aesthetic-linear-v1
     """
     path = Path(checkpoint_root) / task / model_family / model_version
+    print(path)
     return str(path)
 
 
