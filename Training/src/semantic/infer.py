@@ -9,7 +9,7 @@ from src.datasets.semantic_dataset import SemanticRetrievalDataset
 from src.datasets.uri_resolver import cache_manifest_from_uri
 from src.semantic.model import build_semantic_model, build_text_features
 from src.common.checkpointing import build_checkpoint_dir, load_latest_checkpoint
-from src.storage.artifact_io import sync_checkpoint_dir_from_remote
+from src.storage.checkpoint_sync import sync_checkpoint_dir_from_remote
 
 
 def collate_fn(batch: List[Dict]) -> Dict:
