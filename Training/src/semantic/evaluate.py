@@ -125,7 +125,19 @@ def _run_semantic_evaluation_impl(config: dict, config_path: str, tracking_uri: 
     mlflow.log_param("dataset_version", config["dataset"]["dataset_version"])
     mlflow.log_param("evaluation_split", "val")
     mlflow.log_param("device", outputs["device"])
-    mlflow.log_param("checkpoint_path", checkpoint_path or "none")
+    mlflow.set_tag("checkpoint_path", checkpoint_path or "none")
+
+    # checkpoint_value = checkpoint_path or "none"
+
+    # active_run = mlflow.active_run()
+    # already_logged_checkpoint = None
+    # if active_run is not None:
+    #     already_logged_checkpoint = active_run.data.params.get("checkpoint_path")
+
+    # if already_logged_checkpoint is None:
+    #     mlflow.log_param("checkpoint_path", checkpoint_value)
+    # elif already_logged_checkpoint != checkpoint_value:
+    #     mlflow.set_tag("latest_checkpoint_path", checkpoint_value)
 
     for metric_name, metric_value in metrics.items():
         mlflow.log_metric(metric_name, metric_value)
