@@ -82,17 +82,15 @@ def _resolve_checkpoint_path(config: dict) -> Optional[str]:
     latest_path = Path(checkpoint_dir) / "latest.pt"
 
     if best_path.exists():
+        print("Using best checkpoint")
         return str(best_path)
     if latest_path.exists():
+        print("Using latest checkpoint")
         return str(latest_path)
 
     return None
 
-
-def run_semantic_evaluation(config_path: str) -> Dict:
-    config = load_config(config_path)
-    tracking_uri = configure_mlflow(config)
-
+def _run_semantic_evaluation_impl(config: dict, config_path: str, tracking_uri: str)-> Dict:
     checkpoint_path = _resolve_checkpoint_path(config)
 
     outputs = generate_semantic_embeddings(
@@ -119,24 +117,82 @@ def run_semantic_evaluation(config_path: str) -> Dict:
         **metrics,
     }
 
-    with start_run(experiment_name=config["experiment_name"]):
-        log_config_params(config)
+    log_config_params(config)
 
-        mlflow.log_param("candidate_name", config.get("candidate_name", "unknown_candidate"))
-        mlflow.log_param("model_type", config["model"]["type"])
-        mlflow.log_param("model_version", config["model"]["version"])
-        mlflow.log_param("dataset_version", config["dataset"]["dataset_version"])
-        mlflow.log_param("evaluation_split", "val")
-        mlflow.log_param("device", outputs["device"])
-        mlflow.log_param("checkpoint_path", checkpoint_path or "none")
+    mlflow.log_param("candidate_name", config.get("candidate_name", "unknown_candidate"))
+    mlflow.log_param("model_type", config["model"]["type"])
+    mlflow.log_param("model_version", config["model"]["version"])
+    mlflow.log_param("dataset_version", config["dataset"]["dataset_version"])
+    mlflow.log_param("evaluation_split", "val")
+    mlflow.log_param("device", outputs["device"])
+    mlflow.log_param("checkpoint_path", checkpoint_path or "none")
 
-        for metric_name, metric_value in metrics.items():
-            mlflow.log_metric(metric_name, metric_value)
+    for metric_name, metric_value in metrics.items():
+        mlflow.log_metric(metric_name, metric_value)
 
-        summary_file = save_summary_artifact(config, summary)
-        log_artifact_if_exists(str(summary_file))
+    summary_file = save_summary_artifact(config, summary)
+    log_artifact_if_exists(str(summary_file))
 
     return summary
+
+
+
+def run_semantic_evaluation(config_path: str) -> Dict:
+    config = load_config(config_path)
+    tracking_uri = configure_mlflow(config)
+
+    # checkpoint_path = _resolve_checkpoint_path(config)
+
+    # outputs = generate_semantic_embeddings(
+    #     config=config,
+    #     split="val",
+    #     checkpoint_path=checkpoint_path,
+    # )
+
+    # metrics = _compute_retrieval_metrics(
+    #     image_embeddings=outputs["image_embeddings"],
+    #     text_embeddings=outputs["text_embeddings"],
+    # )
+
+    # summary = {
+    #     "candidate_name": config.get("candidate_name", "unknown_candidate"),
+    #     "model_type": config["model"]["type"],
+    #     "model_version": config["model"]["version"],
+    #     "dataset_version": config["dataset"]["dataset_version"],
+    #     "checkpoint_path": checkpoint_path,
+    #     "device": outputs["device"],
+    #     "num_images": len(outputs["image_ids"]),
+    #     "num_texts": len(outputs["texts"]),
+    #     "mlflow_tracking_uri": tracking_uri,
+    #     **metrics,
+    # }
+
+    active_run = mlflow.active_run()
+    if active_run is None:
+        print("No active MLFlow run found; starting standalone evaluation")
+        with start_run(experiment_name=config["experiment_name"]):
+            return _run_semantic_evaluation_impl(config, config_path, tracking_uri)
+    
+    print("Active MLFlow run detected; logging evaluation into the current run")
+    return _run_semantic_evaluation_impl(config, config_path, tracking_uri)
+
+        # log_config_params(config)
+
+        # mlflow.log_param("candidate_name", config.get("candidate_name", "unknown_candidate"))
+        # mlflow.log_param("model_type", config["model"]["type"])
+        # mlflow.log_param("model_version", config["model"]["version"])
+        # mlflow.log_param("dataset_version", config["dataset"]["dataset_version"])
+        # mlflow.log_param("evaluation_split", "val")
+        # mlflow.log_param("device", outputs["device"])
+        # mlflow.log_param("checkpoint_path", checkpoint_path or "none")
+
+        # for metric_name, metric_value in metrics.items():
+        #     mlflow.log_metric(metric_name, metric_value)
+
+        # summary_file = save_summary_artifact(config, summary)
+        # log_artifact_if_exists(str(summary_file))
+
+    # return summary
 
 
 def main():
