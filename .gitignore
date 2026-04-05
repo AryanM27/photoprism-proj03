@@ -57,3 +57,11 @@ Thumbs.db
 # Project-specific: keep out of version control
 Data/Context/
 Data/docs/
+
+# code-review-graph
+.mcp.json
+.cursorrules
+.windsurfrules
+.code-review-graph/
+AGENTS.md
+CLAUDE.md
