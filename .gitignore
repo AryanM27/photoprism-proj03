@@ -53,6 +53,12 @@ Thumbs.db
 *.swp
 *.swo
 .claude/
+.mcp.json
+.cursorrules
+.windsurfrules
+.code-review-graph/
+AGENTS.md
+CLAUDE.md
 
 # Project-specific: keep out of version control
 Data/Context/
@@ -67,11 +73,3 @@ Training/_pycache_/
 Training/src/**/_pycache_/
 Training/ava_dataset/*
 Training/data/processed/*
-
-# code-review-graph
-.mcp.json
-.cursorrules
-.windsurfrules
-.code-review-graph/
-AGENTS.md
-CLAUDE.md
