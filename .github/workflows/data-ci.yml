@@ -1,0 +1,69 @@
+name: Data Pipeline CI
+
+on:
+  push:
+    paths:
+      - "Data/**"
+      - ".github/workflows/data-ci.yml"
+  pull_request:
+    paths:
+      - "Data/**"
+      - ".github/workflows/data-ci.yml"
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Data
+
+    env:
+      DATABASE_URL: postgresql://photoprism:testpass@localhost:5432/photoprism
+      RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+      QDRANT_HOST: localhost
+      QDRANT_PORT: "6333"
+      QDRANT_COLLECTION: test_collection
+      EMBEDDING_MODEL: clip-ViT-B-32
+      S3_ENDPOINT_URL: http://localhost:9000
+      MINIO_USER: minioadmin
+      MINIO_PASSWORD: minioadmin
+      MINIO_BUCKET: photoprism-proj03
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate JSON schemas
+        run: |
+          python -c "
+          import json, glob
+          for path in glob.glob('schemas/*.json'):
+              schema = json.load(open(path))
+              assert '\$schema' in schema or 'type' in schema or 'properties' in schema, f'Invalid schema: {path}'
+              print(f'OK: {path}')
+          "
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short
+
+  docker-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Data
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build worker image
+        run: docker build -f docker/Dockerfile.worker -t worker-test .
+
+      - name: Build API image
+        run: docker build -f docker/Dockerfile.api -t api-test .

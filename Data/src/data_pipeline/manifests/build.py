@@ -291,6 +291,53 @@ def build_version_metadata(
     return uri
 
 
+def generate_drift_report(
+    reference_manifest: str, current_manifest: str, output_path: str
+) -> None:
+    """Compare current dataset distribution against reference — detect drift.
+
+    Args:
+        reference_manifest: Path to reference JSONL manifest (e.g. previous semantic_train.jsonl).
+        current_manifest:   Path to current JSONL manifest to compare against.
+        output_path:        File path to write the HTML drift report.
+    """
+    import pandas as pd
+    from evidently.report import Report
+    from evidently.metric_preset import DataDriftPreset
+
+    ref_df = pd.read_json(reference_manifest, lines=True)
+    cur_df = pd.read_json(current_manifest, lines=True)
+
+    if len(ref_df) == 0 or len(cur_df) == 0:
+        raise ValueError("One or both manifests are empty — cannot generate drift report.")
+
+    preferred_cols = ["aesthetic_score", "width", "height", "pair_label"]
+    numeric_cols = [
+        c for c in preferred_cols
+        if c in ref_df.columns and c in cur_df.columns
+    ]
+    if not numeric_cols:
+        # Fall back to any numeric column present in both
+        numeric_cols = [
+            c for c in ref_df.select_dtypes(include="number").columns
+            if c in cur_df.columns
+        ]
+    if not numeric_cols:
+        raise ValueError(
+            "No shared numeric columns found between reference and current manifest. "
+            "Expected at least one of: aesthetic_score, width, height, pair_label."
+        )
+
+    report = Report(metrics=[DataDriftPreset()])
+    report.run(reference_data=ref_df[numeric_cols], current_data=cur_df[numeric_cols])
+
+    parent = os.path.dirname(output_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    report.save_html(output_path)
+    logger.info("Drift report saved to %s", output_path)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
