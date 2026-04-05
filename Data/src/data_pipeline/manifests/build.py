@@ -9,6 +9,11 @@ Produces four JSONL manifest files per version and uploads them to S3 (Chameleon
 
 Records a DatasetSnapshot row in Postgres for each version built.
 
+Dataset routing:
+    flickr30k images  → semantic manifests only
+    ava / ava_subset  → aesthetic manifests only
+    user uploads      → both manifests
+
 Usage:
     python -m src.data_pipeline.manifests.build --version v1 --dataset yfcc
     python -m src.data_pipeline.manifests.build --version v1  # all datasets
@@ -46,6 +51,11 @@ S3_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID", "")
 S3_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
 SPLIT_STRATEGY = "hash_hex_62_19_19"  # last hex digit: 0-2→val, 3-5→test, 6-f→train
+
+# Dataset routing — controls which source_datasets appear in each manifest type.
+# User-uploaded images (any other source_dataset) appear in both.
+SEMANTIC_ONLY_DATASETS = frozenset({"flickr30k"})          # excluded from aesthetic
+AESTHETIC_ONLY_DATASETS = frozenset({"ava", "ava_subset"}) # excluded from semantic
 
 
 def _s3_client():
@@ -96,6 +106,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
     - text_id: deterministic UUID5 from text content — same text always maps to same ID.
     - pair_label: 1 for all records (matched image-text pairs only).
     - Anti-leakage: split is read from images.split (hash-deterministic at ingest), never re-derived here.
+    - Dataset routing: ava/ava_subset images are excluded (aesthetic-only). User uploads included.
 
     Returns dict with counts per split (train, test).
     """
@@ -108,6 +119,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
             .filter(Image.status == "validated")
             .filter(Image.split.isnot(None))
             .filter(ImageMetadata.text.isnot(None))
+            .filter(Image.source_dataset.notin_(AESTHETIC_ONLY_DATASETS))
         )
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
@@ -153,6 +165,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
       then multiplied by 10 to normalise from the stored 0–1 range to 0–10.
     - image_uri: stable s3:// URI, never a local path.
     - Anti-leakage: split is read from images.split, never re-derived here.
+    - Dataset routing: flickr30k images are excluded (semantic-only). User uploads included.
 
     Returns dict with counts per split.
     """
@@ -180,6 +193,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
             .filter(Image.status == "validated")
             .filter(Image.split.isnot(None))
             .filter(score_subq.c.aesthetic_score.isnot(None))
+            .filter(Image.source_dataset.notin_(SEMANTIC_ONLY_DATASETS))
         )
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
@@ -336,11 +350,21 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Build versioned dataset manifests")
     parser.add_argument("--version", required=True, help="Version tag e.g. v1")
-    parser.add_argument("--dataset", default=None, choices=["yfcc", "ava_subset"],
+    parser.add_argument("--dataset", default=None, choices=["ava", "ava_subset", "flickr30k", "yfcc"],
                         help="Filter to a specific source dataset (default: all)")
     parser.add_argument("--type", default="both", choices=["semantic", "aesthetic", "both"],
                         help="Which manifest type to build")
     args = parser.parse_args()
+
+    # Warn on conflicting --dataset / --type combinations (routing will produce empty manifest)
+    if args.dataset in AESTHETIC_ONLY_DATASETS and args.type in ("semantic", "both"):
+        logger.warning(
+            "--dataset %s is aesthetic-only; semantic manifest will be empty.", args.dataset
+        )
+    if args.dataset in SEMANTIC_ONLY_DATASETS and args.type in ("aesthetic", "both"):
+        logger.warning(
+            "--dataset %s is semantic-only; aesthetic manifest will be empty.", args.dataset
+        )
 
     # None = not built this run (excluded from metadata counts rather than shown as 0)
     semantic_counts  = None
