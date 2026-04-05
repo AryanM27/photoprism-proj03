@@ -19,6 +19,7 @@ import logging
 from src.data_pipeline.workers.celery_app import app
 from src.data_pipeline.db.session import SessionLocal
 from src.data_pipeline.db.models import Image, ProcessingJob
+from src.data_pipeline.workers.embedding_worker import embed_image
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +56,15 @@ def process_validation_event(self, event: dict) -> dict:
         passed, reason = run_checks(storage_path)
 
         if not passed:
-            _mark_failed(db, image_id, reason)
+            _mark_failed(image_id, reason)
             logger.warning(f"[validation] FAILED {image_id}: {reason}")
             return {"image_id": image_id, "status": "failed"}
 
-        metadata = extract_metadata(storage_path, image_id)
-        db.add(metadata)
-
         image = db.get(Image, image_id)
+        source_dataset = image.source_dataset if image else None
+
+        metadata = extract_metadata(storage_path, image_id, source_dataset)
+        db.add(metadata)
         if image:
             image.status = "validated"
 
@@ -77,20 +79,18 @@ def process_validation_event(self, event: dict) -> dict:
 
         db.commit()
         logger.info(f"[validation] OK {image_id}")
+        embed_image.delay(image_id)
         return {"image_id": image_id, "status": "validated"}
 
     except Exception as exc:
         db.rollback()
-        db.close()
         # Open a fresh session for failure recording so a broken connection
         # from the exception above doesn't prevent status being written.
         _mark_failed(image_id, str(exc))
         logger.error(f"[validation] Error {image_id}: {exc}")
         raise self.retry(exc=exc)
     finally:
-        # Guard: close only if not already closed above
-        if db.is_active:
-            db.close()
+        db.close()
 
 
 def _mark_failed(image_id: str, reason: str) -> None:

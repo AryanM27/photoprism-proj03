@@ -1,0 +1,18 @@
+schema: '2.0'
+stages:
+  build_manifests:
+    cmd: python -m src.data_pipeline.manifests.batch_build --version-tag 
+      dataset-v1.0
+    deps:
+    - path: dvc/params.yaml
+      hash: md5
+      md5: 14436078ac70bd176382e5dd28d90eb6
+      size: 214
+    - path: src/data_pipeline/manifests/batch_build.py
+      hash: md5
+      md5: 802821898e69d191b7efdb5d4b626179
+      size: 2444
+    - path: src/data_pipeline/manifests/build.py
+      hash: md5
+      md5: 945697e1aec1bd7ea6fb65d6a3bf888e
+      size: 14625

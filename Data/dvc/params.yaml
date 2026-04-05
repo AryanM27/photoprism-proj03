@@ -1,0 +1,6 @@
+# DVC pipeline parameters
+val_split: 0.19      # ~19% val (hex digits 0-2 = 3/16)
+test_split: 0.19     # ~19% test (hex digits 3-5 = 3/16)
+min_resolution: 224
+yfcc_subset_size: 50000
+embedding_model: clip-ViT-B-32

@@ -2,7 +2,7 @@
 # Detaches block volume (PRESERVED), then deletes VM + lease on KVM@TACC.
 # NEVER deletes object storage (Swift) or block storage volume — data is persistent.
 from chi import server, context, lease
-import chi, os
+import chi, os, time
 
 context.version = "1.0"
 context.choose_project()
@@ -11,10 +11,11 @@ username = os.getenv("USER")
 project = "proj03"
 
 print(f"User: {username} | Project: {project} | Site: KVM@TACC")
+os_conn = chi.clients.connection()
+cinder_client = chi.clients.cinder()
 
 # --- Detach block volume (keep the volume, just detach from the VM) ---
 try:
-    cinder_client = chi.clients.cinder()
     volumes = [v for v in cinder_client.volumes.list() if v.name == f"block-{username}-{project}"]
     if volumes:
         volume = volumes[0]
@@ -29,13 +30,17 @@ try:
 except Exception as e:
     print(f"Could not detach block volume: {e}")
 
-# --- Delete the VM server ---
+# --- Delete the VM server (boot volume and data volume are preserved) ---
 try:
-    s = server.get_server(f"node-{username}-{project}")
-    server.delete_server(s.id)
-    print(f"Server node-{username}-{project} deleted.")
+    srv = os_conn.compute.find_server(f"node-{username}-{project}")
+    if srv:
+        os_conn.compute.delete_server(srv, ignore_missing=True)
+        print(f"Server node-{username}-{project} deleted.")
+        print("Server deleted. Boot volume and data volume are preserved.")
+    else:
+        print(f"Server node-{username}-{project} not found — already deleted.")
 except Exception as e:
-    print(f"Server not found or already deleted: {e}")
+    print(f"Could not delete server: {e}")
 
 # --- Release the lease ---
 try:

@@ -7,28 +7,32 @@ Base = declarative_base()
 
 class Image(Base):
     __tablename__ = "images"
-    image_id       = Column(String, primary_key=True)
-    image_uri      = Column(String, nullable=False)  # s3://photoprism-proj03/images/...
-    storage_path   = Column(String, nullable=False)
-    source_dataset = Column(String)                  # yfcc | ava_subset
-    split          = Column(String)                  # train | val (deterministic: int(image_id[-1], 16) < 4 → val ~25%)
-    status         = Column(String, default="pending")
-    created_at     = Column(DateTime, default=datetime.utcnow)
-    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    image_id         = Column(String, primary_key=True)
+    image_uri        = Column(String, nullable=False)  # s3://photoprism-proj03/raw/<id>.<ext>
+    storage_path     = Column(String, nullable=False)
+    source_dataset   = Column(String)                  # yfcc | ava_subset
+    split            = Column(String)                  # train | val | test (deterministic: last hex digit of image_id)
+    status           = Column(String, default="pending")
+    embedding_status = Column(String, default="pending")  # pending | embedded | failed
+    embedded_at      = Column(DateTime, nullable=True)
+    model_version    = Column(String, nullable=True)      # e.g. clip-ViT-B-32
+    created_at       = Column(DateTime, default=datetime.utcnow)
+    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class ImageMetadata(Base):
     __tablename__ = "image_metadata"
-    image_id       = Column(String, primary_key=True)
-    text           = Column(Text)    # caption / description for semantic search
-    source_dataset = Column(String)  # yfcc | ava_subset
-    width          = Column(Integer)
-    height         = Column(Integer)
-    format         = Column(String)
-    exif_json      = Column(Text)
-    tags           = Column(Text)
-    captured_at    = Column(DateTime)
-    normalized_at  = Column(DateTime)
+    image_id        = Column(String, primary_key=True)
+    text            = Column(Text)    # caption / description for semantic search
+    source_dataset  = Column(String)  # yfcc | ava_subset
+    width           = Column(Integer)
+    height          = Column(Integer)
+    format          = Column(String)
+    exif_json       = Column(Text)
+    tags            = Column(Text)
+    captured_at     = Column(DateTime)
+    normalized_at   = Column(DateTime)
+    aesthetic_score = Column(Float, nullable=True)  # 0.0–1.0; stored pre-scale, normalised to 0–10 in manifests
 
 
 class ProcessingJob(Base):
@@ -41,6 +45,10 @@ class ProcessingJob(Base):
     retry_count   = Column(Integer, default=0)
     created_at    = Column(DateTime, default=datetime.utcnow)
     updated_at    = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("status", "queued")
+        super().__init__(**kwargs)
 
 
 class FeedbackEvent(Base):
@@ -64,5 +72,5 @@ class DatasetSnapshot(Base):
     version_tag    = Column(String)
     manifest_path  = Column(String)
     record_count   = Column(Integer)
-    split_strategy = Column(String)  # e.g. hash_hex_75_25
+    split_strategy = Column(String)  # e.g. hash_hex_62_19_19
     created_at     = Column(DateTime, default=datetime.utcnow)

@@ -13,7 +13,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY docker/requirements.worker.txt .
 RUN pip install --no-cache-dir -r requirements.worker.txt
 
+# Run as non-root to avoid Celery SecurityWarning
+RUN useradd -m -u 1000 worker
+
 COPY src/ ./src/
+
+# Give worker user ownership so Python can write __pycache__
+RUN chown -R worker:worker /app
+USER worker
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
