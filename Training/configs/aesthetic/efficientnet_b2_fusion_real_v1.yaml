@@ -1,0 +1,45 @@
+experiment_name: aesthetic_efficientnet_b2_fusion_real_v1
+candidate_name: aesthetic_efficientnet_b2_fusion_real_v1
+
+task: aesthetic
+
+dataset:
+  manifest_uri: swift://training-module-proj03/data/aesthetic_ava/manifests/aesthetic_manifest_v1.jsonl
+  dataset_version: aesthetic-ava-v1
+  start_index: 0
+  max_records: 10000
+  subset_seed: 42
+
+model:
+  type: efficientnet_b2_fusion
+  family: linear_head
+  version: aesthetic-efficientnet-b2-fusion-v1
+  image_size: 260
+  pretrained: true
+  hidden_dim: 768
+  dropout: 0.35
+
+training:
+  batch_size: 2
+  epochs: 5
+  learning_rate: 0.0002
+  weight_decay: 0.0001
+  resume: auto
+  advance_chunk_on_resume: true
+  carry_optimizer_to_next_chunk: true
+  log_every_n_batches: 50
+
+runtime:
+  device: auto
+  seed: 42
+  num_workers: 2
+
+checkpoint:
+  root_dir: cache/checkpoints
+
+output:
+  artifact_dir: swift://training-module-proj03/artifacts/aesthetic/efficientnet_b2_fusion_real_v1
+  save_history: true
+
+storage:
+  backend: object_store
