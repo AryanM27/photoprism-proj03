@@ -8,7 +8,10 @@ Usage:
 Flow:
     For each image file found:
       1. Compute image_id (MD5 of original relative path)
-      2. Determine train/val split deterministically (int(image_id[-1], 16) < 4 → val)
+      2. Determine train/val/test split deterministically via last hex digit:
+            0-2  → val  (~18.75%)
+            3-5  → test (~18.75%)
+            6-f  → train (~62.5%)
       3. Publish ingestion event to RabbitMQ `ingestion` queue
 """
 
@@ -30,8 +33,21 @@ def compute_image_id(relative_path: str) -> str:
 
 
 def compute_split(image_id: str) -> str:
-    """Deterministic train/val split: last hex digit < 4 → val (~25%), else train."""
-    return "val" if int(image_id[-1], 16) < 4 else "train"
+    """Deterministic train/val/test split based on last hex digit of image_id.
+
+    Bucket distribution (16 digits total):
+        0,1,2 → val  (3/16 ≈ 18.75%)
+        3,4,5 → test (3/16 ≈ 18.75%)
+        6-f   → train (10/16 ≈ 62.5%)
+
+    Never re-derive this at manifest build time — always read from images.split.
+    """
+    d = int(image_id[-1], 16)
+    if d <= 2:
+        return "val"
+    if d <= 5:
+        return "test"
+    return "train"
 
 
 def scan(source_dir: str, source_dataset: str, batch_size: int = 100) -> int:

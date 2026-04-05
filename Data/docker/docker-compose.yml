@@ -24,6 +24,7 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+      - "15692:15692"
     volumes:
       - /mnt/block/rabbitmq:/var/lib/rabbitmq
     healthcheck:
@@ -51,26 +52,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
-
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.19.0
-    container_name: mlflow
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - "pip install -q psycopg2-binary boto3 && mlflow server --host=0.0.0.0 --port=5000 --backend-store-uri=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow --default-artifact-root=s3://mlflow-artifacts/"
-    env_file: .env
-    environment:
-      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-      AWS_ACCESS_KEY_ID: ${MINIO_USER}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
-    ports:
-      - "5000:5000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_started
     restart: unless-stopped
 
   adminer:
@@ -137,24 +118,131 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  photoprism:
-    image: photoprism/photoprism:latest
-    container_name: photoprism
+  embedding-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: embedding-worker
+    command: >
+      celery -A src.data_pipeline.workers.celery_app worker
+      --loglevel=info --queues=embedding --concurrency=1
+      --hostname=embedding@%h
     env_file: .env
     environment:
-      PHOTOPRISM_DATABASE_DRIVER: postgres
-      PHOTOPRISM_DATABASE_SERVER: postgres:5432
-      PHOTOPRISM_DATABASE_NAME: photoprism
-      PHOTOPRISM_DATABASE_USER: ${POSTGRES_USER}
-      PHOTOPRISM_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
-      PHOTOPRISM_ADMIN_PASSWORD: ${PHOTOPRISM_ADMIN_PASSWORD}
-      PHOTOPRISM_SITE_URL: http://localhost:2342/
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      S3_ENDPOINT_URL: http://minio:9000
+      MINIO_BUCKET: photoprism-proj03
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    restart: unless-stopped
+
+  backfill-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: backfill-worker
+    command: >
+      celery -A src.data_pipeline.workers.celery_app worker
+      --loglevel=info --queues=backfill --concurrency=1
+      --hostname=backfill@%h
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      S3_ENDPOINT_URL: http://minio:9000
+      MINIO_BUCKET: photoprism-proj03
+      MINIO_USER: ${MINIO_USER}
+      MINIO_PASSWORD: ${MINIO_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
+
+  features-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: features-api
     ports:
-      - "2342:2342"
-    volumes:
-      - /mnt/block/photoprism/storage:/photoprism/storage
-      - /mnt/block/photoprism/originals:/photoprism/originals
+      - "8000:8000"
+    environment:
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
+    depends_on:
+      qdrant:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /mnt/block/prometheus:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - /mnt/block/grafana:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - /mnt/block/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/collections || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+

@@ -1,0 +1,8 @@
+stages:
+  build_manifests:
+    cmd: python -m src.data_pipeline.manifests.batch_build --version-tag 
+      dataset-v1.0
+    deps:
+    - dvc/params.yaml
+    - src/data_pipeline/manifests/batch_build.py
+    - src/data_pipeline/manifests/build.py
