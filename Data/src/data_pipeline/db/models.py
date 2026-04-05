@@ -73,4 +73,5 @@ class DatasetSnapshot(Base):
     manifest_path  = Column(String)
     record_count   = Column(Integer)
     split_strategy = Column(String)  # e.g. hash_hex_62_19_19
+    manifest_type  = Column(String)  # "semantic" or "aesthetic"
     created_at     = Column(DateTime, default=datetime.utcnow)

@@ -67,15 +67,13 @@ def main() -> None:
 
     semantic_counts = build_semantic_manifests(version_tag, dataset)
     print(
-        f"Semantic  — train: {semantic_counts['train']}  "
-        f"val: {semantic_counts['val']}  "
+        f"Semantic  — train+val: {semantic_counts['train']}  "
         f"test: {semantic_counts['test']}"
     )
 
     aesthetic_counts = build_aesthetic_manifests(version_tag, dataset)
     print(
-        f"Aesthetic — train: {aesthetic_counts['train']}  "
-        f"val: {aesthetic_counts['val']}  "
+        f"Aesthetic — train+val: {aesthetic_counts['train']}  "
         f"test: {aesthetic_counts['test']}"
     )
 
