@@ -22,8 +22,8 @@ drift-report:
 	python -c "\
 from src.data_pipeline.manifests.build import generate_drift_report; \
 generate_drift_report( \
-  'data/manifests/semantic_train.jsonl', \
-  'data/manifests/semantic_val.jsonl', \
+  'data/manifests/v2/semantic_train.jsonl', \
+  'data/manifests/v2/semantic_val.jsonl', \
   'reports/drift.html')"
 
 test:
