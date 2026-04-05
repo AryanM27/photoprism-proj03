@@ -6,7 +6,6 @@ Evidence collected via `docker stats --no-stream` after ingestion load on Chamel
 |-------------------|-------------|-------------|---------------------------------------------|
 | postgres          | 0.01%       | 58.13MiB    | Metadata inserts under ingestion load       |
 | rabbitmq          | 0.58%       | 182.5MiB    | 4 queues (ingestion/validation/embedding/backfill) |
-| minio             | 0.00%       | 183.8MiB    | Image upload + manifest storage             |
 | qdrant            | 5.76%       | 81.32MiB    | Vector upserts during embedding             |
 | ingestion-worker  | 0.30%       | 725.4MiB    | Scanner + uploader, PIL resize              |
 | validation-worker | 0.31%       | 798MiB      | Validation checks + EXIF extraction         |
@@ -23,7 +22,6 @@ Evidence collected via `docker stats --no-stream` after ingestion load on Chamel
 |-------------------------|--------|
 | /mnt/block/postgres     | 70M    |
 | /mnt/block/rabbitmq     | 3.3M   |
-| /mnt/block/minio        | 1.1M   |
 | /mnt/block/qdrant       | 2.0M   |
 | /mnt/block/prometheus   | 11M    |
 | /mnt/block/grafana      | 1004K  |

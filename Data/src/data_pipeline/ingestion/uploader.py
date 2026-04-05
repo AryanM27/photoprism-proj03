@@ -1,10 +1,10 @@
 """
-uploader.py — Upload a local image file to MinIO object storage and register it in Postgres.
+uploader.py — Upload a local image file to S3 object storage (Chameleon CHI@TACC) and register it in Postgres.
 
 Called by the ingestion worker after receiving an event from the `ingestion` queue.
 
 Storage layout:
-    s3://photoprism-proj03/raw/<image_id>.<ext>
+    s3://training-module-proj03/data_arm9337/raw/<image_id>.<ext>
 
 Postgres writes:
     images       — INSERT (status=pending)
@@ -25,10 +25,13 @@ from src.data_pipeline.db.models import Image, ProcessingJob
 
 logger = logging.getLogger(__name__)
 
-BUCKET = os.environ.get("MINIO_BUCKET", "photoprism-proj03")
-S3_ENDPOINT = os.environ.get("S3_ENDPOINT_URL", "http://localhost:9000")
-S3_ACCESS_KEY = os.environ.get("MINIO_USER", "minioadmin")
-S3_SECRET_KEY = os.environ.get("MINIO_PASSWORD", "minioadmin")
+# Replaced by Chameleon native S3 (CHI@TACC)
+BUCKET_NAME = "training-module-proj03"
+BUCKET = os.environ.get("S3_BUCKET", BUCKET_NAME)
+S3_PREFIX = os.environ.get("S3_PREFIX", "data_arm9337")
+S3_ENDPOINT = os.environ.get("S3_ENDPOINT_URL", "https://chi.tacc.chameleoncloud.org:7480")
+S3_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID", "")
+S3_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
 
 def _s3_client():
@@ -57,7 +60,7 @@ def upload_image(event: dict, db: Session) -> dict:
     split = event["split"]
 
     ext = file_path.suffix.lower()
-    storage_key = f"raw/{image_id}{ext}"
+    storage_key = f"{S3_PREFIX}/raw/{image_id}{ext}"
     image_uri = f"s3://{BUCKET}/{storage_key}"
 
     # Upload to MinIO

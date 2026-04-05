@@ -3,7 +3,7 @@ embedding_worker.py — Celery task: generate CLIP embedding and upsert to Qdran
 
 For each event:
   1. Load image record from Postgres
-  2. Download image from MinIO to a temp file
+  2. Download image from S3 object storage (Chameleon CHI@TACC) to a temp file
   3. Encode with CLIPEncoder (clip-ViT-B-32, 512-dim)
   4. Upsert vector + payload to Qdrant
   5. Update images.embedding_status, embedded_at, model_version in Postgres
@@ -45,12 +45,15 @@ def _get_store() -> QdrantStore:
 
 
 def get_s3_client():
+    # Replaced by Chameleon native S3 (CHI@TACC)
     import boto3
+    from botocore.client import Config
     return boto3.client(
         "s3",
         endpoint_url=os.environ["S3_ENDPOINT_URL"],
-        aws_access_key_id=os.environ["MINIO_USER"],
-        aws_secret_access_key=os.environ["MINIO_PASSWORD"],
+        aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+        config=Config(signature_version="s3v4"),
     )
 
 
@@ -88,7 +91,7 @@ def embed_image(self, image_id: str) -> None:
         aesthetic_score = getattr(meta, "aesthetic_score", None) if meta else None
 
         s3 = get_s3_client()
-        bucket = os.environ.get("MINIO_BUCKET", "photoprism-proj03")
+        bucket = os.environ.get("S3_BUCKET", "training-module-proj03")  # Replaced by Chameleon native S3 (CHI@TACC)
 
         encode_error = None
         with tempfile.NamedTemporaryFile(suffix=".jpg") as tmp:

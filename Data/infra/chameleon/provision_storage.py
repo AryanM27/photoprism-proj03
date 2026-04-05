@@ -2,6 +2,17 @@
 # Targets CHI@TACC — Swift object storage for large data (raw images, DVC artifacts,
 # MLflow model checkpoints). Not available on KVM@TACC.
 # Resource names use proj03 as suffix per course naming policy.
+"""
+DEPRECATED: This script creates a Swift container (photoprism-proj03) that is no longer used.
+Object storage has been migrated to Chameleon native S3 (CHI@TACC).
+Use provision_storage.ipynb instead and follow the S3 setup cells.
+# Replaced by Chameleon native S3 (CHI@TACC)
+"""
+import sys
+print("ERROR: This script is deprecated. Use provision_storage.ipynb instead.")
+print("Object storage is now accessed via Chameleon native S3 — see the notebook for setup.")
+sys.exit(1)
+
 from chi import context
 import chi, swiftclient
 

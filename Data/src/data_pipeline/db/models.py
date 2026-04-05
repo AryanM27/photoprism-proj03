@@ -8,7 +8,7 @@ Base = declarative_base()
 class Image(Base):
     __tablename__ = "images"
     image_id         = Column(String, primary_key=True)
-    image_uri        = Column(String, nullable=False)  # s3://photoprism-proj03/raw/<id>.<ext>
+    image_uri        = Column(String, nullable=False)  # s3://training-module-proj03/raw/<id>.<ext>
     storage_path     = Column(String, nullable=False)
     source_dataset   = Column(String)                  # yfcc | ava_subset
     split            = Column(String)                  # train | val | test (deterministic: last hex digit of image_id)

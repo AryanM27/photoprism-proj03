@@ -9,7 +9,7 @@ Usage:
     python -m src.data_pipeline.manifests.batch_build --version-tag dataset-v1.0 --dataset yfcc
 
 Required environment variables:
-    DATABASE_URL, S3_ENDPOINT_URL, MINIO_USER, MINIO_PASSWORD, MINIO_BUCKET
+    DATABASE_URL, S3_ENDPOINT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET
 """
 
 from __future__ import annotations
@@ -25,12 +25,13 @@ from src.data_pipeline.manifests.build import (
     build_version_metadata,
 )
 
+# Replaced by Chameleon native S3 (CHI@TACC)
 _REQUIRED_ENV_VARS = [
     "DATABASE_URL",
     "S3_ENDPOINT_URL",
-    "MINIO_USER",
-    "MINIO_PASSWORD",
-    "MINIO_BUCKET",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "S3_BUCKET",
 ]
 
 

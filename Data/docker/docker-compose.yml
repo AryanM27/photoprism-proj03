@@ -34,25 +34,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  minio:
-    image: minio/minio:latest
-    container_name: minio
-    command: server /data --console-address ":9001"
-    env_file: .env
-    environment:
-      MINIO_ROOT_USER: ${MINIO_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - /mnt/block/minio:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
+  # Replaced by Chameleon native S3 (CHI@TACC) — no local service needed
 
   adminer:
     image: adminer:latest
@@ -77,10 +59,11 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
-      S3_ENDPOINT_URL: http://minio:9000
-      MINIO_BUCKET: photoprism-proj03
-      MINIO_USER: ${MINIO_USER}
-      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      S3_ENDPOINT_URL: https://chi.tacc.chameleoncloud.org:7480
+      S3_BUCKET: training-module-proj03
+      S3_PREFIX: data_arm9337
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
       - /mnt/block/photoprism/originals:/data/originals
     depends_on:
@@ -88,8 +71,6 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      minio:
-        condition: service_started
     restart: unless-stopped
 
   validation-worker:
@@ -105,17 +86,16 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
-      S3_ENDPOINT_URL: http://minio:9000
-      MINIO_BUCKET: photoprism-proj03
-      MINIO_USER: ${MINIO_USER}
-      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      S3_ENDPOINT_URL: https://chi.tacc.chameleoncloud.org:7480
+      S3_BUCKET: training-module-proj03
+      S3_PREFIX: data_arm9337
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      minio:
-        condition: service_started
     restart: unless-stopped
 
   embedding-worker:
@@ -131,10 +111,11 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
-      S3_ENDPOINT_URL: http://minio:9000
-      MINIO_BUCKET: photoprism-proj03
-      MINIO_USER: ${MINIO_USER}
-      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      S3_ENDPOINT_URL: https://chi.tacc.chameleoncloud.org:7480
+      S3_BUCKET: training-module-proj03
+      S3_PREFIX: data_arm9337
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       QDRANT_HOST: ${QDRANT_HOST:-qdrant}
       QDRANT_PORT: ${QDRANT_PORT:-6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
@@ -144,8 +125,6 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      minio:
-        condition: service_started
       qdrant:
         condition: service_started
     restart: unless-stopped
@@ -163,17 +142,16 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
-      S3_ENDPOINT_URL: http://minio:9000
-      MINIO_BUCKET: photoprism-proj03
-      MINIO_USER: ${MINIO_USER}
-      MINIO_PASSWORD: ${MINIO_PASSWORD}
+      S3_ENDPOINT_URL: https://chi.tacc.chameleoncloud.org:7480
+      S3_BUCKET: training-module-proj03
+      S3_PREFIX: data_arm9337
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      minio:
-        condition: service_started
     restart: unless-stopped
 
   features-api:

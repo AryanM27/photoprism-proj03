@@ -1,13 +1,13 @@
 """
 build.py — Build versioned dataset manifests from validated images in Postgres.
 
-Produces six JSONL manifest files per version and uploads them to MinIO:
-    manifests/v<N>/semantic_train.jsonl
-    manifests/v<N>/semantic_val.jsonl
-    manifests/v<N>/semantic_test.jsonl
-    manifests/v<N>/aesthetic_train.jsonl
-    manifests/v<N>/aesthetic_val.jsonl
-    manifests/v<N>/aesthetic_test.jsonl
+Produces six JSONL manifest files per version and uploads them to S3 (Chameleon CHI@TACC):
+    data_arm9337/manifests/v<N>/semantic_train.jsonl
+    data_arm9337/manifests/v<N>/semantic_val.jsonl
+    data_arm9337/manifests/v<N>/semantic_test.jsonl
+    data_arm9337/manifests/v<N>/aesthetic_train.jsonl
+    data_arm9337/manifests/v<N>/aesthetic_val.jsonl
+    data_arm9337/manifests/v<N>/aesthetic_test.jsonl
 
 Records a DatasetSnapshot row in Postgres for each version built.
 
@@ -39,10 +39,13 @@ from src.data_pipeline.db.models import Image, ImageMetadata, DatasetSnapshot
 
 logger = logging.getLogger(__name__)
 
-BUCKET        = os.environ.get("MINIO_BUCKET", "photoprism-proj03")
-S3_ENDPOINT   = os.environ.get("S3_ENDPOINT_URL", "http://minio:9000")
-S3_ACCESS_KEY = os.environ.get("MINIO_USER", "minioadmin")
-S3_SECRET_KEY = os.environ.get("MINIO_PASSWORD", "minioadmin")
+# Replaced by Chameleon native S3 (CHI@TACC)
+BUCKET_NAME   = "training-module-proj03"
+BUCKET        = os.environ.get("S3_BUCKET", BUCKET_NAME)
+S3_PREFIX     = os.environ.get("S3_PREFIX", "data_arm9337")
+S3_ENDPOINT   = os.environ.get("S3_ENDPOINT_URL", "https://chi.tacc.chameleoncloud.org:7480")
+S3_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID", "")
+S3_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
 SPLIT_STRATEGY = "hash_hex_62_19_19"  # last hex digit: 0-2→val, 3-5→test, 6-f→train
 
@@ -58,7 +61,7 @@ def _s3_client():
 
 
 def _upload_jsonl(s3, key: str, records: list[dict]) -> int:
-    """Serialise records to JSONL and upload to MinIO. Returns record count."""
+    """Serialise records to JSONL and upload to S3. Returns record count."""
     body = "\n".join(json.dumps(r) for r in records) + "\n"
     s3.put_object(
         Bucket=BUCKET,
@@ -130,7 +133,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
             else:
                 train_records.append(record)
 
-        prefix = f"manifests/{version}"
+        prefix = f"{S3_PREFIX}/manifests/{version}"
         train_count = _upload_jsonl(s3, f"{prefix}/semantic_train.jsonl", train_records)
         val_count   = _upload_jsonl(s3, f"{prefix}/semantic_val.jsonl",   val_records)
         test_count  = _upload_jsonl(s3, f"{prefix}/semantic_test.jsonl",  test_records)
@@ -211,7 +214,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
             else:
                 train_records.append(record)
 
-        prefix = f"manifests/{version}"
+        prefix = f"{S3_PREFIX}/manifests/{version}"
         train_count = _upload_jsonl(s3, f"{prefix}/aesthetic_train.jsonl", train_records)
         val_count   = _upload_jsonl(s3, f"{prefix}/aesthetic_val.jsonl",   val_records)
         test_count  = _upload_jsonl(s3, f"{prefix}/aesthetic_test.jsonl",  test_records)
@@ -230,7 +233,7 @@ def build_version_metadata(
     aesthetic_counts: dict | None,
     source_dataset: str | None = None,
 ) -> str:
-    """Upload a metadata.json for a dataset version to MinIO.
+    """Upload a metadata.json for a dataset version to S3.
 
     Pass None for semantic_counts or aesthetic_counts if that manifest type was
     not built in this run — those URIs and counts will be omitted from the output
@@ -244,7 +247,7 @@ def build_version_metadata(
     Returns the s3:// URI of the uploaded metadata file.
     """
     s3 = _s3_client()
-    prefix = f"manifests/{version}"
+    prefix = f"{S3_PREFIX}/manifests/{version}"
 
     manifest_uris = {}
     counts = {}

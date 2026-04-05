@@ -1,7 +1,7 @@
 """
-checks.py — Quality checks for images stored in MinIO.
+checks.py — Quality checks for images stored in S3 object storage (Chameleon CHI@TACC).
 
-run_checks(storage_path) downloads the image from MinIO into memory and runs:
+run_checks(storage_path) downloads the image from S3 object storage (Chameleon CHI@TACC) into memory and runs:
   1. Format check   — file extension matches actual image format
   2. Integrity check — Pillow can fully decode the image (detects corruption)
   3. Min resolution  — width and height >= MIN_DIMENSION px
@@ -20,10 +20,12 @@ from PIL import Image, UnidentifiedImageError
 
 logger = logging.getLogger(__name__)
 
-BUCKET         = os.environ.get("MINIO_BUCKET", "photoprism-proj03")
-S3_ENDPOINT    = os.environ.get("S3_ENDPOINT_URL", "http://minio:9000")
-S3_ACCESS_KEY  = os.environ.get("MINIO_USER", "minioadmin")
-S3_SECRET_KEY  = os.environ.get("MINIO_PASSWORD", "minioadmin")
+# Replaced by Chameleon native S3 (CHI@TACC)
+BUCKET_NAME    = "training-module-proj03"
+BUCKET         = os.environ.get("S3_BUCKET", BUCKET_NAME)
+S3_ENDPOINT    = os.environ.get("S3_ENDPOINT_URL", "https://chi.tacc.chameleoncloud.org:7480")
+S3_ACCESS_KEY  = os.environ.get("AWS_ACCESS_KEY_ID", "")
+S3_SECRET_KEY  = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
 MIN_DIMENSION  = 32      # pixels — reject thumbnails / icons
 MAX_FILE_BYTES = 50 * 1024 * 1024  # 50 MB
@@ -42,7 +44,7 @@ def _s3_client():
 
 
 def _download(storage_path: str) -> bytes:
-    """Download object from MinIO and return raw bytes."""
+    """Download object from S3 and return raw bytes."""
     s3 = _s3_client()
     buf = io.BytesIO()
     s3.download_fileobj(BUCKET, storage_path, buf)
@@ -50,7 +52,7 @@ def _download(storage_path: str) -> bytes:
 
 
 def run_checks(storage_path: str) -> tuple[bool, str]:
-    """Run all quality checks on an image in MinIO.
+    """Run all quality checks on an image in S3 (Chameleon CHI@TACC).
 
     Args:
         storage_path: S3 key e.g. raw/<image_id>.jpg
