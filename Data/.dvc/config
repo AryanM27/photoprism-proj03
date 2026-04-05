@@ -1,7 +1,8 @@
+# Replaced by Chameleon native S3 (CHI@TACC)
 [core]
-    remote = minio
-['remote "minio"']
-    url = s3://photoprism-proj03/dvc
-    endpointurl = http://localhost:9000
-    access_key_id = minioadmin
-    secret_access_key = minio_proj03
+    remote = chi_s3
+['remote "chi_s3"']
+    url = s3://training-module-proj03/data_arm9337/dvc
+    endpointurl = https://chi.tacc.chameleoncloud.org:7480
+    access_key_id = ${AWS_ACCESS_KEY_ID}
+    secret_access_key = ${AWS_SECRET_ACCESS_KEY}

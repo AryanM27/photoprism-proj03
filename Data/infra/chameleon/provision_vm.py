@@ -122,8 +122,6 @@ security_groups = [
     {"name": "allow-5432",  "port": 5432, "description": "Enable TCP port 5432 (Postgres)"},
     {"name": "allow-5672",  "port": 5672, "description": "Enable TCP port 5672 (RabbitMQ AMQP)"},
     {"name": "allow-15672", "port": 15672,"description": "Enable TCP port 15672 (RabbitMQ Management UI)"},
-    {"name": "allow-9000",  "port": 9000, "description": "Enable TCP port 9000 (MinIO API)"},
-    {"name": "allow-9001",  "port": 9001, "description": "Enable TCP port 9001 (MinIO Console)"},
     {"name": "allow-5000",  "port": 5000, "description": "Enable TCP port 5000 (MLflow)"},
     {"name": "allow-2342",  "port": 2342, "description": "Enable TCP port 2342 (PhotoPrism)"},
     {"name": "allow-8080",  "port": 8080, "description": "Enable TCP port 8080 (Adminer)"},
@@ -182,7 +180,7 @@ print("  sudo parted -s /dev/vdb mklabel gpt && sudo parted -s /dev/vdb mkpart p
 print("  sudo mkfs.ext4 /dev/vdb1")
 print("  sudo mkdir -p /mnt/block && sudo mount /dev/vdb1 /mnt/block")
 print("  sudo chown -R cc /mnt/block && sudo chgrp -R cc /mnt/block")
-print("  mkdir -p /mnt/block/postgres /mnt/block/rabbitmq /mnt/block/minio \\")
+print("  mkdir -p /mnt/block/postgres /mnt/block/rabbitmq \\")
 print("           /mnt/block/photoprism/storage /mnt/block/photoprism/originals \\")
 print("           /mnt/block/prometheus /mnt/block/grafana")
 print("\n--- Subsequent sessions: just mount ---")

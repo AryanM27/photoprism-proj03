@@ -24,10 +24,11 @@ jobs:
       QDRANT_PORT: "6333"
       QDRANT_COLLECTION: test_collection
       EMBEDDING_MODEL: clip-ViT-B-32
-      S3_ENDPOINT_URL: http://localhost:9000
-      MINIO_USER: minioadmin
-      MINIO_PASSWORD: minioadmin
-      MINIO_BUCKET: photoprism-proj03
+      # Replaced by Chameleon native S3 (CHI@TACC)
+      S3_ENDPOINT_URL: http://localhost:9000  # unit tests mock S3; fast-fail if not mocked
+      AWS_ACCESS_KEY_ID: fake-access-key
+      AWS_SECRET_ACCESS_KEY: fake-secret-key
+      S3_BUCKET: training-module-proj03
 
     steps:
       - uses: actions/checkout@v4

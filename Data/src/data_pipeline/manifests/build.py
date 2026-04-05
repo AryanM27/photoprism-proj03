@@ -1,15 +1,18 @@
 """
 build.py — Build versioned dataset manifests from validated images in Postgres.
 
-Produces six JSONL manifest files per version and uploads them to MinIO:
-    manifests/v<N>/semantic_train.jsonl
-    manifests/v<N>/semantic_val.jsonl
-    manifests/v<N>/semantic_test.jsonl
-    manifests/v<N>/aesthetic_train.jsonl
-    manifests/v<N>/aesthetic_val.jsonl
-    manifests/v<N>/aesthetic_test.jsonl
+Produces four JSONL manifest files per version and uploads them to S3 (Chameleon CHI@TACC):
+    data_arm9337/manifests/v<N>/semantic_train.jsonl   (train + val records combined)
+    data_arm9337/manifests/v<N>/semantic_test.jsonl
+    data_arm9337/manifests/v<N>/aesthetic_train.jsonl  (train + val records combined)
+    data_arm9337/manifests/v<N>/aesthetic_test.jsonl
 
 Records a DatasetSnapshot row in Postgres for each version built.
+
+Dataset routing:
+    flickr30k images  → semantic manifests only
+    ava / ava_subset  → aesthetic manifests only
+    user uploads      → both manifests
 
 Usage:
     python -m src.data_pipeline.manifests.build --version v1 --dataset yfcc
@@ -39,12 +42,20 @@ from src.data_pipeline.db.models import Image, ImageMetadata, DatasetSnapshot
 
 logger = logging.getLogger(__name__)
 
-BUCKET        = os.environ.get("MINIO_BUCKET", "photoprism-proj03")
-S3_ENDPOINT   = os.environ.get("S3_ENDPOINT_URL", "http://minio:9000")
-S3_ACCESS_KEY = os.environ.get("MINIO_USER", "minioadmin")
-S3_SECRET_KEY = os.environ.get("MINIO_PASSWORD", "minioadmin")
+# Replaced by Chameleon native S3 (CHI@TACC)
+BUCKET_NAME   = "training-module-proj03"
+BUCKET        = os.environ.get("S3_BUCKET", BUCKET_NAME)
+S3_PREFIX     = os.environ.get("S3_PREFIX", "data_arm9337")
+S3_ENDPOINT   = os.environ.get("S3_ENDPOINT_URL", "https://chi.tacc.chameleoncloud.org:7480")
+S3_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID", "")
+S3_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
 SPLIT_STRATEGY = "hash_hex_62_19_19"  # last hex digit: 0-2→val, 3-5→test, 6-f→train
+
+# Dataset routing — controls which source_datasets appear in each manifest type.
+# User-uploaded images (any other source_dataset) appear in both.
+SEMANTIC_ONLY_DATASETS = frozenset({"flickr30k"})          # excluded from aesthetic
+AESTHETIC_ONLY_DATASETS = frozenset({"ava", "ava_subset"}) # excluded from semantic
 
 
 def _s3_client():
@@ -58,7 +69,7 @@ def _s3_client():
 
 
 def _upload_jsonl(s3, key: str, records: list[dict]) -> int:
-    """Serialise records to JSONL and upload to MinIO. Returns record count."""
+    """Serialise records to JSONL and upload to S3. Returns record count."""
     body = "\n".join(json.dumps(r) for r in records) + "\n"
     s3.put_object(
         Bucket=BUCKET,
@@ -70,7 +81,7 @@ def _upload_jsonl(s3, key: str, records: list[dict]) -> int:
     return len(records)
 
 
-def _record_snapshot(db, version: str, manifest_path: str, record_count: int) -> None:
+def _record_snapshot(db, version: str, manifest_path: str, record_count: int, manifest_type: str) -> None:
     snap = DatasetSnapshot(
         snapshot_id=str(uuid.uuid4()),
         version_tag=version,
@@ -78,6 +89,7 @@ def _record_snapshot(db, version: str, manifest_path: str, record_count: int) ->
         record_count=record_count,
         split_strategy=SPLIT_STRATEGY,
         created_at=datetime.now(timezone.utc),
+        manifest_type=manifest_type,
     )
     db.add(snap)
     db.commit()
@@ -94,8 +106,9 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
     - text_id: deterministic UUID5 from text content — same text always maps to same ID.
     - pair_label: 1 for all records (matched image-text pairs only).
     - Anti-leakage: split is read from images.split (hash-deterministic at ingest), never re-derived here.
+    - Dataset routing: ava/ava_subset images are excluded (aesthetic-only). User uploads included.
 
-    Returns dict with counts per split (train, val, test).
+    Returns dict with counts per split (train, test).
     """
     db = SessionLocal()
     s3 = _s3_client()
@@ -106,11 +119,13 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
             .filter(Image.status == "validated")
             .filter(Image.split.isnot(None))
             .filter(ImageMetadata.text.isnot(None))
+            .filter(Image.source_dataset.notin_(AESTHETIC_ONLY_DATASETS))
         )
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
 
-        train_records, val_records, test_records = [], [], []
+        # train split includes both train and val records
+        train_records, test_records = [], []
         for image, meta in query.all():
             record = {
                 "record_id":       str(uuid.uuid4()),
@@ -123,22 +138,19 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
                 "text":            meta.text,
                 "pair_label":      1,
             }
-            if image.split == "val":
-                val_records.append(record)
-            elif image.split == "test":
+            if image.split == "test":
                 test_records.append(record)
             else:
-                train_records.append(record)
+                train_records.append(record)  # train + val combined
 
-        prefix = f"manifests/{version}"
+        prefix = f"{S3_PREFIX}/manifests/{version}"
         train_count = _upload_jsonl(s3, f"{prefix}/semantic_train.jsonl", train_records)
-        val_count   = _upload_jsonl(s3, f"{prefix}/semantic_val.jsonl",   val_records)
         test_count  = _upload_jsonl(s3, f"{prefix}/semantic_test.jsonl",  test_records)
 
         manifest_path = f"s3://{BUCKET}/{prefix}/"
-        _record_snapshot(db, version, manifest_path, train_count + val_count + test_count)
+        _record_snapshot(db, version, manifest_path, train_count + test_count, "semantic")
 
-        return {"train": train_count, "val": val_count, "test": test_count}
+        return {"train": train_count, "test": test_count}
     finally:
         db.close()
 
@@ -153,6 +165,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
       then multiplied by 10 to normalise from the stored 0–1 range to 0–10.
     - image_uri: stable s3:// URI, never a local path.
     - Anti-leakage: split is read from images.split, never re-derived here.
+    - Dataset routing: flickr30k images are excluded (semantic-only). User uploads included.
 
     Returns dict with counts per split.
     """
@@ -180,11 +193,12 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
             .filter(Image.status == "validated")
             .filter(Image.split.isnot(None))
             .filter(score_subq.c.aesthetic_score.isnot(None))
+            .filter(Image.source_dataset.notin_(SEMANTIC_ONLY_DATASETS))
         )
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
 
-        train_records, val_records, test_records = [], [], []
+        train_records, test_records = [], []
         for image, score in query.all():
             if score is None:
                 logger.warning(f"Skipping {image.image_id}: null aesthetic_score after join")
@@ -204,22 +218,19 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
                 "source_dataset":  image.source_dataset,
                 "aesthetic_score": round(raw_score * _AESTHETIC_SCALE, 4),
             }
-            if image.split == "val":
-                val_records.append(record)
-            elif image.split == "test":
+            if image.split == "test":
                 test_records.append(record)
             else:
-                train_records.append(record)
+                train_records.append(record)  # train + val combined
 
-        prefix = f"manifests/{version}"
+        prefix = f"{S3_PREFIX}/manifests/{version}"
         train_count = _upload_jsonl(s3, f"{prefix}/aesthetic_train.jsonl", train_records)
-        val_count   = _upload_jsonl(s3, f"{prefix}/aesthetic_val.jsonl",   val_records)
         test_count  = _upload_jsonl(s3, f"{prefix}/aesthetic_test.jsonl",  test_records)
 
         manifest_path = f"s3://{BUCKET}/{prefix}/"
-        _record_snapshot(db, version, manifest_path, train_count + val_count + test_count)
+        _record_snapshot(db, version, manifest_path, train_count + test_count, "aesthetic")
 
-        return {"train": train_count, "val": val_count, "test": test_count}
+        return {"train": train_count, "test": test_count}
     finally:
         db.close()
 
@@ -230,7 +241,7 @@ def build_version_metadata(
     aesthetic_counts: dict | None,
     source_dataset: str | None = None,
 ) -> str:
-    """Upload a metadata.json for a dataset version to MinIO.
+    """Upload a metadata.json for a dataset version to S3.
 
     Pass None for semantic_counts or aesthetic_counts if that manifest type was
     not built in this run — those URIs and counts will be omitted from the output
@@ -244,23 +255,19 @@ def build_version_metadata(
     Returns the s3:// URI of the uploaded metadata file.
     """
     s3 = _s3_client()
-    prefix = f"manifests/{version}"
+    prefix = f"{S3_PREFIX}/manifests/{version}"
 
     manifest_uris = {}
     counts = {}
     if semantic_counts is not None:
         manifest_uris["semantic_train"] = f"s3://{BUCKET}/{prefix}/semantic_train.jsonl"
-        manifest_uris["semantic_val"]   = f"s3://{BUCKET}/{prefix}/semantic_val.jsonl"
         manifest_uris["semantic_test"]  = f"s3://{BUCKET}/{prefix}/semantic_test.jsonl"
         counts["semantic_train"] = semantic_counts["train"]
-        counts["semantic_val"]   = semantic_counts["val"]
         counts["semantic_test"]  = semantic_counts["test"]
     if aesthetic_counts is not None:
         manifest_uris["aesthetic_train"] = f"s3://{BUCKET}/{prefix}/aesthetic_train.jsonl"
-        manifest_uris["aesthetic_val"]   = f"s3://{BUCKET}/{prefix}/aesthetic_val.jsonl"
         manifest_uris["aesthetic_test"]  = f"s3://{BUCKET}/{prefix}/aesthetic_test.jsonl"
         counts["aesthetic_train"] = aesthetic_counts["train"]
-        counts["aesthetic_val"]   = aesthetic_counts["val"]
         counts["aesthetic_test"]  = aesthetic_counts["test"]
     # total = unique images (same images appear in both semantic and aesthetic,
     # so sum only one type's splits to avoid double-counting)
@@ -343,11 +350,21 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Build versioned dataset manifests")
     parser.add_argument("--version", required=True, help="Version tag e.g. v1")
-    parser.add_argument("--dataset", default=None, choices=["yfcc", "ava_subset"],
+    parser.add_argument("--dataset", default=None, choices=["ava", "ava_subset", "flickr30k", "yfcc"],
                         help="Filter to a specific source dataset (default: all)")
     parser.add_argument("--type", default="both", choices=["semantic", "aesthetic", "both"],
                         help="Which manifest type to build")
     args = parser.parse_args()
+
+    # Warn on conflicting --dataset / --type combinations (routing will produce empty manifest)
+    if args.dataset in AESTHETIC_ONLY_DATASETS and args.type in ("semantic", "both"):
+        logger.warning(
+            "--dataset %s is aesthetic-only; semantic manifest will be empty.", args.dataset
+        )
+    if args.dataset in SEMANTIC_ONLY_DATASETS and args.type in ("aesthetic", "both"):
+        logger.warning(
+            "--dataset %s is semantic-only; aesthetic manifest will be empty.", args.dataset
+        )
 
     # None = not built this run (excluded from metadata counts rather than shown as 0)
     semantic_counts  = None
@@ -355,11 +372,11 @@ if __name__ == "__main__":
 
     if args.type in ("semantic", "both"):
         semantic_counts = build_semantic_manifests(args.version, args.dataset)
-        print(f"Semantic manifests:  train={semantic_counts['train']} val={semantic_counts['val']} test={semantic_counts['test']}")
+        print(f"Semantic manifests:  train+val={semantic_counts['train']} test={semantic_counts['test']}")
 
     if args.type in ("aesthetic", "both"):
         aesthetic_counts = build_aesthetic_manifests(args.version, args.dataset)
-        print(f"Aesthetic manifests: train={aesthetic_counts['train']} val={aesthetic_counts['val']} test={aesthetic_counts['test']}")
+        print(f"Aesthetic manifests: train+val={aesthetic_counts['train']} test={aesthetic_counts['test']}")
 
     metadata_uri = build_version_metadata(
         args.version, semantic_counts, aesthetic_counts, args.dataset
