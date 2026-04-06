@@ -1,5 +1,5 @@
 """
-normalizer.py — Extract and normalise image metadata from MinIO.
+normalizer.py — Extract and normalise image metadata from S3 object storage (Chameleon CHI@TACC).
 
 extract_metadata(storage_path, image_id) downloads the image, reads EXIF
 data via Pillow, and returns a populated ImageMetadata ORM object ready to
@@ -25,10 +25,12 @@ from src.data_pipeline.db.models import ImageMetadata
 
 logger = logging.getLogger(__name__)
 
-BUCKET        = os.environ.get("MINIO_BUCKET", "photoprism-proj03")
-S3_ENDPOINT   = os.environ.get("S3_ENDPOINT_URL", "http://minio:9000")
-S3_ACCESS_KEY = os.environ.get("MINIO_USER", "minioadmin")
-S3_SECRET_KEY = os.environ.get("MINIO_PASSWORD", "minioadmin")
+# Replaced by Chameleon native S3 (CHI@TACC)
+BUCKET_NAME   = "training-module-proj03"
+BUCKET        = os.environ.get("S3_BUCKET", BUCKET_NAME)
+S3_ENDPOINT   = os.environ.get("S3_ENDPOINT_URL", "https://chi.tacc.chameleoncloud.org:7480")
+S3_ACCESS_KEY = os.environ.get("AWS_ACCESS_KEY_ID", "")
+S3_SECRET_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
 
 def _s3_client():
@@ -89,7 +91,7 @@ def extract_metadata(
     image_id: str,
     source_dataset: Optional[str] = None,
 ) -> ImageMetadata:
-    """Download image from MinIO and extract metadata.
+    """Download image from S3 and extract metadata.
 
     Args:
         storage_path:   S3 key e.g. raw/<image_id>.jpg
