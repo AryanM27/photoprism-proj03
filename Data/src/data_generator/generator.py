@@ -18,7 +18,10 @@ import random
 import time
 
 import requests
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+from src.data_pipeline.db.models import Image
 from src.data_pipeline.feedback.synthetic import generate_feedback_session
 
 SAMPLE_QUERIES = [
@@ -45,6 +48,22 @@ def load_image_ids_from_manifest(manifest_path: str) -> list[str]:
                 ids.append(json.loads(line)["image_id"])
     if not ids:
         raise ValueError(f"No image IDs found in manifest: {manifest_path}")
+    return ids
+
+
+def load_image_ids_from_db() -> list[str]:
+    """Query Postgres for all image IDs where status='valid'."""
+    print("No manifest found, loading image IDs from database...")
+    database_url = os.environ["DATABASE_URL"]
+    engine = create_engine(database_url)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+    try:
+        ids = [row.image_id for row in db.query(Image.image_id).filter(Image.status == "valid").all()]
+    finally:
+        db.close()
+    if not ids:
+        raise ValueError("No valid images found in database (status='valid'). Cannot run generator.")
     return ids
 
 
@@ -92,8 +111,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--manifest",
-        default="data/manifests/semantic_train.jsonl",
-        help="JSONL manifest to load image IDs from",
+        default=None,
+        help="Path to JSONL manifest to load image IDs from. If not provided or file does not exist, falls back to querying Postgres for all images with status='valid'.",
     )
     parser.add_argument(
         "--duration",
@@ -109,6 +128,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    image_ids = load_image_ids_from_manifest(args.manifest)
-    print(f"Loaded {len(image_ids)} image IDs from {args.manifest}")
+    if args.manifest and os.path.exists(args.manifest):
+        image_ids = load_image_ids_from_manifest(args.manifest)
+        print(f"Loaded {len(image_ids)} image IDs from {args.manifest}")
+    else:
+        image_ids = load_image_ids_from_db()
+        print(f"Loaded {len(image_ids)} image IDs from database.")
     run_generator(args.service_url, image_ids, args.duration, args.rate)
