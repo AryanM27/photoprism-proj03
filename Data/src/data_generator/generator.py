@@ -21,7 +21,7 @@ import requests
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.data_pipeline.db.models import Image
+from src.data_pipeline.db.models import FeedbackEvent, Image
 from src.data_pipeline.feedback.synthetic import generate_feedback_session
 
 SAMPLE_QUERIES = [
@@ -76,28 +76,42 @@ def run_generator(
 
     Returns total number of sessions generated.
     """
+    database_url = os.environ["DATABASE_URL"]
+    engine = create_engine(database_url)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
     end_time = time.time() + duration_seconds
     session_count = 0
+    total_events = 0
     interval = 1.0 / rate_per_second
 
-    while time.time() < end_time:
-        query = random.choice(SAMPLE_QUERIES)
-        user_id = f"synthetic_user_{random.randint(1, 1000)}"
-        events = generate_feedback_session(user_id, query, image_ids)
+    try:
+        while time.time() < end_time:
+            query = random.choice(SAMPLE_QUERIES)
+            user_id = f"synthetic_user_{random.randint(1, 1000)}"
+            events = generate_feedback_session(user_id, query, image_ids)
 
-        try:
-            requests.post(
-                f"{service_url}/api/v1/feedback",
-                json=events,
-                timeout=5,
-            )
-        except Exception:
-            pass  # generator never blocks on service availability
+            try:
+                requests.post(
+                    f"{service_url}/api/v1/feedback",
+                    json=events,
+                    timeout=5,
+                )
+            except Exception:
+                pass  # generator never blocks on service availability
 
-        session_count += 1
-        time.sleep(interval)
+            for e in events:
+                db.add(FeedbackEvent(**e))
+            db.commit()
 
-    print(f"Generated {session_count} sessions over {duration_seconds}s")
+            session_count += 1
+            total_events += len(events)
+            time.sleep(interval)
+    finally:
+        db.close()
+
+    print(f"Generated {session_count} sessions ({total_events} events) over {duration_seconds}s")
     return session_count
 
 
