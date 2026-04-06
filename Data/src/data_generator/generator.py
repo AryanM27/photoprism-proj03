@@ -52,18 +52,17 @@ def load_image_ids_from_manifest(manifest_path: str) -> list[str]:
 
 
 def load_image_ids_from_db() -> list[str]:
-    """Query Postgres for all image IDs where status='valid'."""
-    print("No manifest found, loading image IDs from database...")
+    """Query Postgres for all image IDs where status='validated'."""
     database_url = os.environ["DATABASE_URL"]
     engine = create_engine(database_url)
     Session = sessionmaker(bind=engine)
     db = Session()
     try:
-        ids = [row.image_id for row in db.query(Image.image_id).filter(Image.status == "valid").all()]
+        ids = [row.image_id for row in db.query(Image.image_id).filter(Image.status == "validated").all()]
     finally:
         db.close()
     if not ids:
-        raise ValueError("No valid images found in database (status='valid'). Cannot run generator.")
+        raise ValueError("No validated images found in database (status='validated'). Cannot run generator.")
     return ids
 
 
