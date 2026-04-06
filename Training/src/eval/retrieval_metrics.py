@@ -1,7 +1,5 @@
 from typing import Dict, List
-
 import torch
-
 
 def compute_similarity_matrix(
     text_embeddings: torch.Tensor,
@@ -9,7 +7,6 @@ def compute_similarity_matrix(
 ) -> torch.Tensor:
 
     return text_embeddings @ image_embeddings.T
-
 
 def recall_at_k(
     similarity_matrix: torch.Tensor,

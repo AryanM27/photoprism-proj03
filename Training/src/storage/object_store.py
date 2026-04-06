@@ -1,48 +1,11 @@
-# from typing import Any, Dict, List
-
-# from src.storage.base import StorageBackend
-
-
-# class ObjectStoreBackend(StorageBackend):
-#     """
-#     Placeholder for future S3/MinIO-compatible implementation.
-#     This keeps the interface stable while local backend remains the active implementation.
-#     """
-
-#     def __init__(self, endpoint: str = "", bucket: str = "", prefix: str = ""):
-#         self.endpoint = endpoint
-#         self.bucket = bucket
-#         self.prefix = prefix
-
-#     def exists(self, path: str) -> bool:
-#         raise NotImplementedError("Object storage backend not implemented yet.")
-
-#     def makedirs(self, path: str) -> None:
-#         raise NotImplementedError("Object storage backend not implemented yet.")
-
-#     def save_text(self, path: str, content: str) -> None:
-#         raise NotImplementedError("Object storage backend not implemented yet.")
-
-#     def save_json(self, path: str, data: Dict[str, Any]) -> None:
-#         raise NotImplementedError("Object storage backend not implemented yet.")
-
-#     def load_json(self, path: str) -> Dict[str, Any]:
-#         raise NotImplementedError("Object storage backend not implemented yet.")
-
-#     def list_files(self, path: str) -> List[str]:
-#         raise NotImplementedError("Object storage backend not implemented yet.")
-
-
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 import json
-
 import swiftclient
 import os
 
 from src.storage.base import StorageBackend
-
 
 def parse_swift_uri(uri: str) -> Tuple[str, str]:
     parsed = urlparse(uri)
@@ -74,7 +37,7 @@ def _build_swift_connection():
         "auth_type": auth_type,
     }
 
-    # remove empty values
+    #remove empty values
     os_options = {k: v for k, v in os_options.items() if v}
 
     if auth_type == "v3applicationcredential":
@@ -95,7 +58,7 @@ def _build_swift_connection():
             auth_version=auth_version,
         )
 
-    # token auth path
+    #token auth path
     if auth_type == "token":
         auth_token = os.getenv("OS_AUTH_TOKEN") or os.getenv("OS_TOKEN")
         storage_url = os.getenv("OS_STORAGE_URL")
@@ -112,7 +75,7 @@ def _build_swift_connection():
             os_options=os_options,
         )
 
-    # default username/password path
+    #default username/password path
     username = os.getenv("OS_USERNAME")
     password = os.getenv("OS_PASSWORD")
 
@@ -128,7 +91,6 @@ def _build_swift_connection():
         os_options=os_options,
         auth_version=auth_version,
     )
-
 
 class ObjectStoreBackend(StorageBackend):
     def __init__(
@@ -147,7 +109,6 @@ class ObjectStoreBackend(StorageBackend):
             raise
 
     def makedirs(self, path: str) -> None:
-        # No-op for object storage
         return
 
     def save_text(self, path: str, content: str) -> None:
