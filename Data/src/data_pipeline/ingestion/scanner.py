@@ -5,6 +5,8 @@ Usage:
     python -m src.data_pipeline.ingestion.scanner --source-dir /data/yfcc \
         --source-dataset yfcc --batch-size 100
 
+    Supported --source-dataset values: yfcc, ava, ava_subset, flickr30k, user
+
 Flow:
     For each image file found:
       1. Compute image_id (MD5 of original relative path)
@@ -98,7 +100,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--source-dataset",
         required=True,
-        choices=["yfcc", "ava_subset"],
+        choices=["yfcc", "ava", "ava_subset", "flickr30k", "user"],
         help="Dataset name tag",
     )
     parser.add_argument("--batch-size", type=int, default=100, help="Log progress every N images")
