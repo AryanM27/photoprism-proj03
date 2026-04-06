@@ -49,7 +49,7 @@ def main() -> None:
     parser.add_argument(
         "--dataset",
         default=None,
-        choices=["yfcc", "ava_subset"],
+        choices=["yfcc", "ava", "ava_subset", "flickr30k", "user"],
         help="Filter to a specific source dataset (default: all)",
     )
     args = parser.parse_args()
