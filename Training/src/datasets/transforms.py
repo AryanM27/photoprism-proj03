@@ -1,6 +1,5 @@
 from torchvision import transforms
 
-
 def get_eval_transforms(image_size: int = 224):
     return transforms.Compose(
         [

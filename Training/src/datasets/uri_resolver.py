@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 from src.common.paths import MANIFEST_CACHE_DIR, IMAGE_CACHE_DIR
 from src.storage.resolver import resolve_storage_backend
 
-
 def _cache_name(uri: str) -> str:
     return hashlib.sha256(uri.encode("utf-8")).hexdigest()
 

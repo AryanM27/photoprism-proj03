@@ -20,7 +20,6 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# IMPORTANT: do not reinstall torch here (ROCm base already has it)
 COPY Training/requirements-training.txt /app/Training/requirements-training.txt
 
 RUN python -m pip install --upgrade pip setuptools wheel && \

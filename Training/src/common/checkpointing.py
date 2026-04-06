@@ -35,9 +35,7 @@ def build_checkpoint_dir(
     model_version: str,
 ) -> str:
     """
-    Build a model-scoped checkpoint directory.
-    Example:
-    Training/artifacts/checkpoints/aesthetic/linear_head/aesthetic-linear-v1
+    sammple: Training/artifacts/checkpoints/aesthetic/linear_head/aesthetic-linear-v1
     """
     path = Path(checkpoint_root) / task / model_family / model_version
     print(path)

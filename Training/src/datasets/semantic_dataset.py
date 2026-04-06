@@ -9,7 +9,6 @@ from src.datasets.manifests import load_and_validate_semantic_manifest
 from src.datasets.transforms import get_eval_transforms
 from src.datasets.uri_resolver import cache_image_from_uri
 
-
 class SemanticRetrievalDataset(Dataset):
     def __init__(
         self,

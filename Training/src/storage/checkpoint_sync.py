@@ -2,7 +2,6 @@ from pathlib import Path
 
 from src.storage.resolver import resolve_storage_backend
 
-
 def sync_checkpoint_dir_to_remote(config: dict, local_dir: str, remote_prefix: str) -> None:
     backend = resolve_storage_backend(config)
     local_path = Path(local_dir)
@@ -14,7 +13,6 @@ def sync_checkpoint_dir_to_remote(config: dict, local_dir: str, remote_prefix: s
         if file_path.is_file():
             remote_path = f"{remote_prefix.rstrip('/')}/{file_path.name}"
             backend.upload_file(str(file_path), remote_path)
-
 
 def sync_checkpoint_dir_from_remote(config: dict, remote_prefix: str, local_dir: str) -> None:
     backend = resolve_storage_backend(config)
