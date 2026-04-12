@@ -5,7 +5,7 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
-COLLECTION_NAME = "photos"
+COLLECTION_NAME = "photoprism_images"
 EMBEDDING_DIM = 512
 
 

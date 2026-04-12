@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-open-clip-torch
+sentence-transformers
 torch
 torchvision
 pillow
