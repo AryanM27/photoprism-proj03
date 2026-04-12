@@ -66,7 +66,11 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
       - /mnt/block/photoprism/originals:/data/originals
-      - /home/cc/originals:/home/cc/originals
+      - type: bind
+        source: /home/cc/originals
+        target: /home/cc/originals
+        bind:
+          propagation: rshared
     depends_on:
       postgres:
         condition: service_healthy
