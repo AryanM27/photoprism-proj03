@@ -1,3 +1,4 @@
+import hashlib
 import os
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
@@ -23,7 +24,7 @@ def ensure_collection(client: QdrantClient):
 
 def upsert_photo(client: QdrantClient, image_id: str, embedding: list[float], payload: dict):
     # Use a stable integer ID derived from the image_id string
-    point_id = abs(hash(image_id)) % (2**63)
+    point_id = int(hashlib.sha256(image_id.encode()).hexdigest(), 16) % (2**63)
     client.upsert(
         collection_name=COLLECTION_NAME,
         points=[

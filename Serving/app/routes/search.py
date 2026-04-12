@@ -10,7 +10,7 @@ router = APIRouter()
 class TextSearchRequest(BaseModel):
     query: str
     top_k: int = 10
-    rerank: bool = False  # set True to re-rank by aesthetic score
+    rerank: bool = True
 
 
 class SearchResult(BaseModel):
