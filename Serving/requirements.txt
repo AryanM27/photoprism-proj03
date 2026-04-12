@@ -10,3 +10,5 @@ python-multipart
 pydantic
 onnxruntime
 onnxscript
+sqlalchemy
+psycopg2-binary

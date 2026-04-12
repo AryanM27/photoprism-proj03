@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.services import qdrant_client as qdrant
 from app.services.qdrant_client import get_client
+from app.services import feedback
 
 router = APIRouter()
 
@@ -30,7 +31,6 @@ def search(req: TextSearchRequest, request: Request):
     results = qdrant.search_photos(client, query_embedding, top_k=req.top_k)
 
     if req.rerank and results:
-        # Fetch image bytes from payload paths (if available)
         image_bytes_map = {}
         for item in results:
             path = item["payload"].get("filepath") or item["payload"].get("filename")
@@ -41,5 +41,7 @@ def search(req: TextSearchRequest, request: Request):
                 except (FileNotFoundError, OSError):
                     pass
         results = ranker.rerank(results, image_bytes_map)
+
+    feedback.log_search(req.query, results)
 
     return results

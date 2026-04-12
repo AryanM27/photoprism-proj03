@@ -9,12 +9,14 @@ from app.services.embedder import Embedder
 from app.services.embedder_onnx import OnnxEmbedder
 from app.services.ranker import AestheticRanker
 from app.services.qdrant_client import ensure_collection, get_client
+from app.services import feedback
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    feedback.init_db()
     use_onnx = os.getenv("USE_ONNX", "false").lower() == "true"
-    model_name = os.getenv("MODEL_NAME", "ViT-B-32")
+    model_name = os.getenv("MODEL_NAME", "clip-ViT-B-32")
 
     if use_onnx:
         app.state.embedder = OnnxEmbedder(

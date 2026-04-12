@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: serving-api
+  namespace: photoprism
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: serving-api
+  template:
+    metadata:
+      labels:
+        app: serving-api
+    spec:
+      containers:
+        - name: api
+          image: serving-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: QDRANT_HOST
+              value: qdrant
+            - name: QDRANT_PORT
+              value: "6333"
+            - name: QDRANT_COLLECTION
+              value: photoprism_images
+            - name: MODEL_NAME
+              value: clip-ViT-B-32
+            - name: MODEL_VERSION
+              value: clip-ViT-B-32-v1
+            - name: DEVICE
+              value: auto
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: serving-secrets
+                  key: database-url
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"

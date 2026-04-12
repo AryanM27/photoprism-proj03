@@ -17,8 +17,11 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
-      - MODEL_NAME=ViT-B-32
+      - QDRANT_COLLECTION=photoprism_images
+      - MODEL_NAME=clip-ViT-B-32
+      - MODEL_VERSION=clip-ViT-B-32-v1
       - DEVICE=auto
+      - DATABASE_URL=${DATABASE_URL:-}
     depends_on:
       - qdrant
     volumes:
@@ -39,6 +42,7 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alerts:/etc/prometheus/rules
 
   grafana:
     image: grafana/grafana:latest
