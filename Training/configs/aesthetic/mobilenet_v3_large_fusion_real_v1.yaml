@@ -35,7 +35,7 @@ evaluation:
   test_manifest_filename: aesthetic_test.jsonl
   test_manifest_uri: null
   test_manifest_path: null
-  batch_size: 8
+  batch_size: 4
   max_records: 2500
 
 runtime:
