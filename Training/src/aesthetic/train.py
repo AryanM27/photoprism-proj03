@@ -1,11 +1,15 @@
 import sys
 from pathlib import Path
 import time
-from src.aesthetic.evaluate import evaluate_model
 from src.datasets.uri_resolver import cache_manifest_from_uri
 from src.storage.checkpoint_sync import (
     sync_checkpoint_dir_from_remote,
     sync_checkpoint_dir_to_remote,
+)
+
+from src.aesthetic.evaluate import (
+    evaluate_model,
+    run_aesthetic_evaluation_for_split,
 )
 
 #ensure Training directory is in PYTHONPATH
@@ -93,6 +97,23 @@ def run_one_epoch(model, loader, criterion, optimizer, device, train: bool):
         "mae": mean_abs_error,
     }
 
+def _resolve_best_checkpoint_path(config: dict) -> str:
+    checkpoint_dir = build_checkpoint_dir(
+        checkpoint_root=config["checkpoint"]["root_dir"],
+        task=config["task"],
+        model_family=config["model"]["family"],
+        model_version=config["model"]["version"],
+    )
+
+    best_path = Path(checkpoint_dir) / "best.pt"
+    latest_path = Path(checkpoint_dir) / "latest.pt"
+
+    if best_path.exists():
+        return str(best_path)
+    if latest_path.exists():
+        return str(latest_path)
+
+    raise FileNotFoundError(f"No best.pt or latest.pt found in {checkpoint_dir}")
 
 def train_aesthetic_baseline(config_path: str) -> dict:
     config = load_config(config_path)
@@ -380,14 +401,36 @@ def train_aesthetic_baseline(config_path: str) -> dict:
         print(f"Total training time (sec): {total_training_time_sec:.2f}")
         mlflow.log_metric("total_training_time_sec", total_training_time_sec)
 
+        evaluation_cfg = config.get("evaluation", {})
+        run_test_after_training = evaluation_cfg.get("run_test_after_training", False)
+
+        test_summary = {}
+
+        if run_test_after_training:
+            print("\n===== RUNNING FINAL TEST EVALUATION =====", flush=True)
+
+            best_checkpoint_path = _resolve_best_checkpoint_path(config)
+            test_split_name = evaluation_cfg.get("test_split_name", "test")
+
+            test_summary = run_aesthetic_evaluation_for_split(
+                config=config,
+                split=test_split_name,
+                checkpoint_path=best_checkpoint_path,
+            )
+
+            for key, value in test_summary.items():
+                if isinstance(value, (int, float)):
+                    mlflow.log_metric(key, value)
+
         summary = {
-            "best_val_loss": best_val_loss,
+            "best_val_mse_loss": best_val_loss,
             "device": str(device),
             "mlflow_tracking_uri": tracking_uri,
             "checkpoint_dir": checkpoint_dir,
             "resumed_from_checkpoint": resumed_from_checkpoint,
-            "epochs_completed_in_this_run": max(0, epochs - start_epoch + 1),
             "total_training_time_sec": total_training_time_sec,
+            "epochs_completed_in_this_run": max(0, epochs - start_epoch + 1),
+            **test_summary,
         }
 
         summary_file = save_summary_artifact(config, summary)

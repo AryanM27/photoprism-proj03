@@ -1,6 +1,78 @@
 import torch
 from torch import nn
 import torchvision.models as tv_models
+import open_clip
+
+
+class OpenCLIPEnhancedSemanticModel(nn.Module):
+    def __init__(
+        self,
+        model_name: str = "ViT-B-32",
+        pretrained: str = "laion2b_s34b_b79k",
+        embed_dim: int = 512,
+        proj_dim: int = 512,
+        dropout: float = 0.2,
+    ):
+        super().__init__()
+
+        #load openclip
+        self.clip_model, _, _ = open_clip.create_model_and_transforms(
+            model_name, pretrained=pretrained
+        )
+
+        #freeze partially
+        for name, param in self.clip_model.named_parameters():
+            if "visual" in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+
+        self.visual = self.clip_model.visual
+        self.text = self.clip_model.transformer
+
+        #projection heads
+        self.image_proj = nn.Sequential(
+            nn.Linear(embed_dim, proj_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(proj_dim, proj_dim),
+        )
+
+        self.text_proj = nn.Sequential(
+            nn.Linear(embed_dim, proj_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(proj_dim, proj_dim),
+        )
+
+        #learnable temperature
+        self.logit_scale = nn.Parameter(torch.ones([]) * torch.log(torch.tensor(1 / 0.07)))
+
+    def encode_image(self, image):
+        img_feat = self.clip_model.encode_image(image)
+        img_feat = self.image_proj(img_feat)
+        return nn.functional.normalize(img_feat, dim=-1)
+
+    def encode_text(self, text):
+        txt_feat = self.clip_model.encode_text(text)
+        txt_feat = self.text_proj(txt_feat)
+        return nn.functional.normalize(txt_feat, dim=-1)
+
+    def forward(self, image, text):
+        image_features = self.encode_image(image)
+        text_features = self.encode_text(text)
+
+        logit_scale = self.logit_scale.exp()
+
+        logits_per_image = logit_scale * image_features @ text_features.t()
+        logits_per_text = logits_per_image.t()
+
+        return {
+            "logits_per_image": logits_per_image,
+            "logits_per_text": logits_per_text,
+            "image_features": image_features,
+            "text_features": text_features,
+        }
 
 class TinySemanticModel(nn.Module):
 
@@ -124,6 +196,15 @@ def build_semantic_model(config: dict) -> nn.Module:
             embedding_dim=model_cfg.get("embedding_dim", 128),
             hidden_dim=model_cfg.get("hidden_dim", 256),
             pretrained=model_cfg.get("pretrained", True),
+        )
+    
+    if model_type == "openclip_enhanced":
+        return OpenCLIPEnhancedSemanticModel(
+            model_name=model_cfg.get("model_name", "ViT-B-32"),
+            pretrained=model_cfg.get("pretrained", "laion2b_s34b_b79k"),
+            embed_dim=model_cfg.get("embed_dim", 512),
+            proj_dim=model_cfg.get("proj_dim", 512),
+            dropout=model_cfg.get("dropout", 0.2),
         )
 
     raise ValueError(f"Unsupported semantic model type: {model_type}")

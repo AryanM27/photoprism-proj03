@@ -301,6 +301,79 @@ class EfficientNetB2FusionAestheticRegressor(nn.Module):
 
         out = self.out_head(feat)
         return out.squeeze(-1)
+    
+class MobileNetV3LargeFusionAestheticRegressor(nn.Module):
+    def __init__(
+        self,
+        pretrained: bool = True,
+        hidden_dim: int = 512,
+        dropout: float = 0.30,
+    ):
+        super().__init__()
+        weights = tv_models.MobileNet_V3_Large_Weights.DEFAULT if pretrained else None
+        backbone = tv_models.mobilenet_v3_large(weights=weights)
+
+        #use only the convolutional feature extractor
+        self.features = backbone.features
+        self.pool = GeMPool2d()
+
+        #MobileNetV3-Large feature dims from torchvision backbone:
+        #mid-level feature after block index 10 -> 112 channels
+        #final feature after last block -> 960 channels
+        self.mid_dim = 112
+        self.final_dim = 960
+        fused_dim = self.mid_dim + self.final_dim
+
+        self.fusion_norm = nn.LayerNorm(fused_dim)
+        self.fusion_gate = SEBlock(fused_dim, reduction=16)
+
+        self.proj = nn.Sequential(
+            nn.Linear(fused_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        self.mlp_block1 = ResidualMLPBlock(hidden_dim, dropout=dropout)
+        self.mlp_block2 = ResidualMLPBlock(hidden_dim, dropout=dropout)
+
+        self.out_head = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, hidden_dim // 4),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 4, 1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        mid_feat = None
+
+        for idx, block in enumerate(self.features):
+            x = block(x)
+            if idx == 10:
+                mid_feat = x
+
+        final_feat = x
+
+        if mid_feat is None:
+            raise RuntimeError("Intermediate MobileNetV3 feature was not captured.")
+
+        mid_vec = self.pool(mid_feat).flatten(1)
+        final_vec = self.pool(final_feat).flatten(1)
+
+        # Fuse texture/composition cues with higher-level semantics
+        feat = torch.cat([mid_vec, final_vec], dim=1)
+        feat = self.fusion_norm(feat)
+        feat = self.fusion_gate(feat)
+
+        feat = self.proj(feat)
+        feat = self.mlp_block1(feat)
+        feat = self.mlp_block2(feat)
+
+        out = self.out_head(feat)
+        return out.squeeze(-1)
 
 
 def build_aesthetic_model(config: dict) -> nn.Module:
@@ -348,6 +421,13 @@ def build_aesthetic_model(config: dict) -> nn.Module:
             pretrained=model_cfg.get("pretrained", True),
             hidden_dim=model_cfg.get("hidden_dim", 768),
             dropout=model_cfg.get("dropout", 0.35),
+        )
+    
+    if model_type == "mobilenet_v3_large_fusion":
+        return MobileNetV3LargeFusionAestheticRegressor(
+            pretrained=model_cfg.get("pretrained", True),
+            hidden_dim=model_cfg.get("hidden_dim", 512),
+            dropout=model_cfg.get("dropout", 0.30),
         )
 
     raise ValueError(f"Unsupported aesthetic model type: {model_type}")

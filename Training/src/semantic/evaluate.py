@@ -50,6 +50,9 @@ def _compute_retrieval_metrics(
     }
     return metrics
 
+def _prefix_metrics(metrics: Dict[str, float], prefix: str) -> Dict[str, float]:
+    return {f"{prefix}_{k}": v for k, v in metrics.items()}
+
 def _resolve_remote_checkpoint_prefix(config: dict) -> Optional[str]:
     if config.get("storage", {}).get("backend") != "object_store":
         return None
@@ -85,6 +88,55 @@ def _resolve_checkpoint_path(config: dict) -> Optional[str]:
         return str(latest_path)
 
     return None
+
+def run_semantic_evaluation_for_split(
+    config: dict,
+    split: str = "val",
+    checkpoint_path: Optional[str] = None,
+    log_to_mlflow: bool = False,
+) -> Dict:
+    if checkpoint_path is None:
+        checkpoint_path = _resolve_checkpoint_path(config)
+
+    outputs = generate_semantic_embeddings(
+        config=config,
+        split=split,
+        checkpoint_path=checkpoint_path,
+    )
+
+    metrics = _compute_retrieval_metrics(
+        image_embeddings=outputs["image_embeddings"],
+        text_embeddings=outputs["text_embeddings"],
+    )
+
+    metrics["recall_at_1_mean"] = (
+        metrics["i2t_recall_at_1"] + metrics["t2i_recall_at_1"]
+    ) / 2.0
+
+    prefixed_metrics = _prefix_metrics(metrics, split)
+
+    summary = {
+        "candidate_name": config.get("candidate_name", "unknown_candidate"),
+        "model_type": config["model"]["type"],
+        "model_version": config["model"]["version"],
+        "dataset_version": config["dataset"]["dataset_version"],
+        "checkpoint_path": outputs["checkpoint_path"],
+        "device": outputs["device"],
+        "num_images": len(outputs["image_ids"]),
+        "num_texts": len(outputs["texts"]),
+        "evaluation_split": split,
+        "manifest_ref": outputs.get("manifest_ref"),
+        "manifest_path": outputs.get("manifest_path"),
+        **prefixed_metrics,
+    }
+
+    if log_to_mlflow:
+        mlflow.log_param("evaluation_split", split)
+        mlflow.set_tag("checkpoint_path", outputs["checkpoint_path"])
+        for metric_name, metric_value in prefixed_metrics.items():
+            mlflow.log_metric(metric_name, metric_value)
+
+    return summary
 
 def _run_semantic_evaluation_impl(config: dict, config_path: str, tracking_uri: str)-> Dict:
     checkpoint_path = _resolve_checkpoint_path(config)
@@ -134,15 +186,26 @@ def _run_semantic_evaluation_impl(config: dict, config_path: str, tracking_uri: 
 def run_semantic_evaluation(config_path: str) -> Dict:
     config = load_config(config_path)
     tracking_uri = configure_mlflow(config)
+    experiment_name = config["experiment_name"]
 
-    active_run = mlflow.active_run()
-    if active_run is None:
-        print("No active MLFlow run found; starting standalone evaluation")
-        with start_run(experiment_name=config["experiment_name"]):
-            return _run_semantic_evaluation_impl(config, config_path, tracking_uri)
-    
-    print("Active MLFlow run detected; logging evaluation into the current run")
-    return _run_semantic_evaluation_impl(config, config_path, tracking_uri)
+    mlflow.set_experiment(experiment_name)
+
+    with mlflow.start_run(run_name=f"{config['candidate_name']}_semantic_eval"):
+        log_config_params(config)
+
+        summary = run_semantic_evaluation_for_split(
+            config=config,
+            split="val",
+            checkpoint_path=None,
+            log_to_mlflow=True,
+        )
+
+        summary["mlflow_tracking_uri"] = tracking_uri
+
+        summary_file = save_summary_artifact(config, summary)
+        log_artifact_if_exists(str(summary_file))
+
+        return summary
 
 def main():
     import argparse

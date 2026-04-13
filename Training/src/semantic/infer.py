@@ -23,6 +23,30 @@ def get_device(device_str: str) -> torch.device:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(device_str)
 
+def _resolve_manifest_ref_for_split(config: dict, split: Optional[str]) -> str:
+    dataset_cfg = config.get("dataset", {})
+    eval_cfg = config.get("evaluation", {})
+
+    base_manifest_ref = dataset_cfg.get("manifest_uri") or dataset_cfg.get("manifest_path")
+    if not base_manifest_ref:
+        raise ValueError("No dataset manifest_uri or manifest_path found in config")
+
+    test_split_name = eval_cfg.get("test_split_name", "test")
+
+    if split == test_split_name:
+        explicit_test_ref = eval_cfg.get("test_manifest_uri") or eval_cfg.get("test_manifest_path")
+        if explicit_test_ref:
+            return explicit_test_ref
+
+        test_manifest_filename = eval_cfg.get("test_manifest_filename", "train_test.jsonl")
+
+        if str(base_manifest_ref).startswith("swift://"):
+            return str(base_manifest_ref).rsplit("/", 1)[0] + f"/{test_manifest_filename}"
+
+        return str(Path(base_manifest_ref).with_name(test_manifest_filename))
+
+    return base_manifest_ref
+
 def _resolve_remote_checkpoint_prefix(config: dict) -> Optional[str]:
     artifact_dir = config["output"].get("artifact_dir")
     if artifact_dir is None or not artifact_dir.startswith("swift://"):
@@ -103,12 +127,14 @@ def generate_semantic_embeddings(
     checkpoint_path: Optional[str] = None,
     batch_size: Optional[int] = None,
 ) -> Dict:
-    manifest_ref = config["dataset"].get("manifest_uri") or config["dataset"]["manifest_path"]
-    print(f"Caching/loading semantic manifest from: {manifest_ref}", flush=True)
+
+    manifest_ref = _resolve_manifest_ref_for_split(config, split)
+    print(f"Caching/loading semantic manifest for split='{split}' from: {manifest_ref}", flush=True)
     manifest_path = cache_manifest_from_uri(config, manifest_ref)
     print(f"Manifest cached at: {manifest_path}", flush=True)
 
-    effective_batch_size = batch_size or config["training"]["batch_size"]
+    eval_cfg = config.get("evaluation", {})
+    effective_batch_size = batch_size or eval_cfg.get("batch_size") or config["training"]["batch_size"]
     device = get_device(config["runtime"]["device"])
 
     if checkpoint_path is None:
@@ -189,6 +215,9 @@ def generate_semantic_embeddings(
         "candidate_name": config.get("candidate_name", "unknown_candidate"),
         "model_type": config["model"]["type"],
         "model_version": config["model"]["version"],
+        "manifest_ref": manifest_ref,
+        "manifest_path": manifest_path,
+        "split": split,
     }
 
 def main():

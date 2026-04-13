@@ -1,7 +1,10 @@
 import sys
 from pathlib import Path
 import time
-from src.semantic.evaluate import run_semantic_evaluation
+from src.semantic.evaluate import (
+    run_semantic_evaluation,
+    run_semantic_evaluation_for_split,
+)
 from src.datasets.uri_resolver import cache_manifest_from_uri
 from src.storage.checkpoint_sync import (
     sync_checkpoint_dir_from_remote,
@@ -95,6 +98,24 @@ def run_one_epoch(model, loader, optimizer, device, train: bool):
 
     mean_loss = total_loss / total_samples if total_samples > 0 else 0.0
     return {"contrastive_loss": mean_loss}
+
+def _resolve_best_checkpoint_path(config: dict) -> str:
+    checkpoint_dir = build_checkpoint_dir(
+        checkpoint_root=config["checkpoint"]["root_dir"],
+        task=config["task"],
+        model_family=config["model"]["family"],
+        model_version=config["model"]["version"],
+    )
+
+    best_path = Path(checkpoint_dir) / "best.pt"
+    latest_path = Path(checkpoint_dir) / "latest.pt"
+
+    if best_path.exists():
+        return str(best_path)
+    if latest_path.exists():
+        return str(latest_path)
+
+    raise FileNotFoundError(f"No best.pt or latest.pt found in {checkpoint_dir}")
 
 def train_semantic_baseline(config_path: str) -> dict:
     config = load_config(config_path)
@@ -308,17 +329,9 @@ def train_semantic_baseline(config_path: str) -> dict:
 
             global_step += len(train_loader)
 
-            more_epoch_metrics =  run_semantic_evaluation(config_path=config_path)
-
             epoch_metrics = {
                 "train_contrastive_loss": train_metrics["contrastive_loss"],
                 "val_contrastive_loss": val_metrics["contrastive_loss"],
-                "i2t_recall_at_1": more_epoch_metrics["i2t_recall_at_1"],
-                "i2t_recall_at_5": more_epoch_metrics["i2t_recall_at_5"],
-                "t2i_recall_at_1": more_epoch_metrics["t2i_recall_at_1"],
-                "t2i_recall_at_5": more_epoch_metrics["t2i_recall_at_5"],
-                "mean_i2t_rank": more_epoch_metrics["mean_i2t_rank"],
-                "mean_t2i_rank": more_epoch_metrics["mean_t2i_rank"],
                 "epoch": epoch,
             }
 
@@ -382,15 +395,44 @@ def train_semantic_baseline(config_path: str) -> dict:
         print(f"Total training time (sec): {total_training_time_sec:.2f}")
         mlflow.log_metric("total_training_time_sec", total_training_time_sec)
 
+        evaluation_cfg = config.get("evaluation", {})
+        run_test_after_training = evaluation_cfg.get("run_test_after_training", False)
+
+        test_summary = {}
+
+        if run_test_after_training:
+            print("\n===== RUNNING FINAL TEST EVALUATION =====", flush=True)
+
+            best_checkpoint_path = _resolve_best_checkpoint_path(config)
+            test_split_name = evaluation_cfg.get("test_split_name", "test")
+
+            test_summary = run_semantic_evaluation_for_split(
+                config=config,
+                split=test_split_name,
+                checkpoint_path=best_checkpoint_path,
+                log_to_mlflow=True,
+            )
+
+        # summary = {
+        #     "best_val_contrastive_loss": best_val_loss,
+        #     "device": str(device),
+        #     "mlflow_tracking_uri": tracking_uri,
+        #     "checkpoint_dir": checkpoint_dir,
+        #     "resumed_from_checkpoint": resumed_from_checkpoint,
+        #     "total_training_time_sec": total_training_time_sec,
+        #     "epochs_completed_in_this_run": max(0, epochs - start_epoch + 1),
+        # }
+
         summary = {
-            "best_val_contrastive_loss": best_val_loss,
-            "device": str(device),
-            "mlflow_tracking_uri": tracking_uri,
-            "checkpoint_dir": checkpoint_dir,
-            "resumed_from_checkpoint": resumed_from_checkpoint,
-            "total_training_time_sec": total_training_time_sec,
-            "epochs_completed_in_this_run": max(0, epochs - start_epoch + 1),
-        }
+        "best_val_contrastive_loss": best_val_loss,
+        "device": str(device),
+        "mlflow_tracking_uri": tracking_uri,
+        "checkpoint_dir": checkpoint_dir,
+        "resumed_from_checkpoint": resumed_from_checkpoint,
+        "total_training_time_sec": total_training_time_sec,
+        "epochs_completed_in_this_run": max(0, epochs - start_epoch + 1),
+        **test_summary,
+    }
 
         summary_file = save_summary_artifact(config, summary)
 

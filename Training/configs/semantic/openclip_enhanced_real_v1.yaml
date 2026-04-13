@@ -1,0 +1,55 @@
+experiment_name: semantic_openclip_enhanced_real_v1
+candidate_name: semantic_openclip_enhanced_real_v1
+
+task: semantic
+
+dataset:
+  manifest_uri: swift://training-module-proj03/data_arm9337/manifests/dataset-v1.0/semantic_train.jsonl
+  dataset_version: semantic-flickr30k-v1
+  start_index: 0
+  max_records: 5000
+  subset_seed: 42
+
+model:
+  type: openclip_enhanced
+  family: semantic_openclip
+  version: semantic-openclip-enhanced-vit-b32-v1
+  image_size: 224
+  model_name: ViT-B-32
+  pretrained: laion2b_s34b_b79k
+  embed_dim: 512
+  proj_dim: 512
+  dropout: 0.20
+
+training:
+  batch_size: 16
+  epochs: 10
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  resume: auto
+  advance_chunk_on_resume: true
+  carry_optimizer_to_next_chunk: true
+  log_every_n_batches: 50
+
+evaluation:
+  run_test_after_training: true
+  test_split_name: test
+  test_manifest_filename: semantic_test.jsonl
+  test_manifest_uri: null
+  test_manifest_path: null
+  batch_size: 16
+
+runtime:
+  device: auto
+  seed: 42
+  num_workers: 2
+
+checkpoint:
+  root_dir: cache/checkpoints
+
+output:
+  artifact_dir: swift://training-module-proj03/artifacts/semantic/openclip_enhanced_real_v1
+  save_history: true
+
+storage:
+  backend: object_store

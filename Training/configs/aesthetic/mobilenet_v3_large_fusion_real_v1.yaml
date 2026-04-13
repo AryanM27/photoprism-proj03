@@ -1,27 +1,27 @@
-experiment_name: aesthetic_efficientnet_b2_fusion_real_v1
-candidate_name: aesthetic_efficientnet_b2_fusion_real_v1
+experiment_name: aesthetic_mobilenet_v3_large_fusion_real_v1
+candidate_name: aesthetic_mobilenet_v3_large_fusion_real_v1
 
 task: aesthetic
 
 dataset:
-  manifest_uri: swift://training-module-proj03/data/aesthetic_ava/manifests/aesthetic_manifest_v1.jsonl
+  manifest_uri: swift://training-module-proj03/data_arm9337/manifests/dataset-v1.0/aesthetic_train.jsonl
   dataset_version: aesthetic-ava-v1
   start_index: 0
   max_records: 25000
   subset_seed: 42
 
 model:
-  type: efficientnet_b2_fusion
-  family: linear_head
-  version: aesthetic-efficientnet-b2-fusion-v1
-  image_size: 260
+  type: mobilenet_v3_large_fusion
+  family: fusion_head
+  version: aesthetic-mobilenet-v3-large-fusion-v1
+  image_size: 224
   pretrained: true
-  hidden_dim: 768
-  dropout: 0.35
+  hidden_dim: 640
+  dropout: 0.30
 
 training:
-  batch_size: 2
-  epochs: 6
+  batch_size: 8
+  epochs: 10
   learning_rate: 0.0002
   weight_decay: 0.0001
   resume: auto
@@ -32,7 +32,7 @@ training:
 evaluation:
   run_test_after_training: true
   test_split_name: test
-  test_manifest_filename: train_test.jsonl
+  test_manifest_filename: aesthetic_test.jsonl
   test_manifest_uri: null
   test_manifest_path: null
   batch_size: 8
@@ -47,7 +47,7 @@ checkpoint:
   root_dir: cache/checkpoints
 
 output:
-  artifact_dir: swift://training-module-proj03/artifacts/aesthetic/efficientnet_b2_fusion_real_v1
+  artifact_dir: swift://training-module-proj03/artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1
   save_history: true
 
 storage:
