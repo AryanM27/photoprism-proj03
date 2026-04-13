@@ -63,7 +63,7 @@ def evaluate_model(model, dataloader, device) -> Dict[str, float]:
     total_abs_error = 0.0
     total_samples = 0
 
-    with torch.no_grad():
+    with torch.inference_mode():
         for batch in dataloader:
             images = batch["image_tensor"].to(device)
             targets = batch["aesthetic_score"].to(device).float()
@@ -104,12 +104,14 @@ def run_aesthetic_evaluation_for_split(
     split: str = "val",
     checkpoint_path: Optional[str] = None,
 ) -> Dict:
-    device = get_device(config["runtime"]["device"])
 
     manifest_ref = _resolve_manifest_ref_for_split(config, split)
     manifest_path = cache_manifest_from_uri(config, manifest_ref)
 
     eval_cfg = config.get("evaluation", {})
+    eval_device_str = eval_cfg.get("device", "cpu")
+    device = get_device(eval_device_str)
+    
     dataset_cfg = config["dataset"]
 
     dataset = AestheticDataset(

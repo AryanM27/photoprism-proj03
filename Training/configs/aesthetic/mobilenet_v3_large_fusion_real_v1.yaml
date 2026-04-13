@@ -26,7 +26,7 @@ training:
   weight_decay: 0.0001
   resume: always
   advance_chunk_on_resume: false
-  carry_optimizer_to_next_chunk: true
+  carry_optimizer_to_next_chunk: false
   log_every_n_batches: 50
 
 evaluation:
@@ -36,6 +36,7 @@ evaluation:
   test_manifest_uri: null
   test_manifest_path: null
   batch_size: 4
+  device: cpu
   max_records: 250
 
 runtime:
