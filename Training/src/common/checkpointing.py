@@ -156,6 +156,24 @@ def load_checkpoint(checkpoint_path: str, map_location: str = "cpu") -> Dict[str
     return torch.load(path, map_location=map_location)
 
 
+# def load_latest_checkpoint(checkpoint_dir: str, map_location: str = "cpu") -> Tuple[Dict[str, Any], Dict[str, Any]]:
+#     checkpoint_root = Path(checkpoint_dir)
+#     latest_ckpt = checkpoint_root / "latest.pt"
+#     latest_meta = checkpoint_root / "latest_metadata.json"
+
+#     if not latest_ckpt.exists():
+#         raise FileNotFoundError(f"Latest checkpoint not found: {latest_ckpt}")
+
+#     if not latest_meta.exists():
+#         raise FileNotFoundError(f"Latest checkpoint metadata not found: {latest_meta}")
+
+#     state = torch.load(latest_ckpt, map_location=map_location)
+
+#     with latest_meta.open("r", encoding="utf-8") as f:
+#         metadata = json.load(f)
+
+#     return state, metadata
+
 def load_latest_checkpoint(checkpoint_dir: str, map_location: str = "cpu") -> Tuple[Dict[str, Any], Dict[str, Any]]:
     checkpoint_root = Path(checkpoint_dir)
     latest_ckpt = checkpoint_root / "latest.pt"
@@ -167,7 +185,9 @@ def load_latest_checkpoint(checkpoint_dir: str, map_location: str = "cpu") -> Tu
     if not latest_meta.exists():
         raise FileNotFoundError(f"Latest checkpoint metadata not found: {latest_meta}")
 
-    state = torch.load(latest_ckpt, map_location=map_location)
+    # Always load checkpoint tensors onto CPU first.
+    # This is safer on ROCm than restoring directly onto the GPU.
+    state = torch.load(latest_ckpt, map_location="cpu")
 
     with latest_meta.open("r", encoding="utf-8") as f:
         metadata = json.load(f)
