@@ -24,9 +24,9 @@ training:
   epochs: 8
   learning_rate: 0.0002
   weight_decay: 0.0001
-  resume: never
-  advance_chunk_on_resume: false
-  carry_optimizer_to_next_chunk: false
+  resume: always
+  advance_chunk_on_resume: true
+  carry_optimizer_to_next_chunk: true
   log_every_n_batches: 50
 
 evaluation:
