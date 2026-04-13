@@ -41,7 +41,7 @@ evaluation:
 runtime:
   device: auto
   seed: 42
-  num_workers: 2
+  num_workers: 0
 
 checkpoint:
   root_dir: cache/checkpoints
