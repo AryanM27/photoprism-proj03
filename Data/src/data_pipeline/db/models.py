@@ -32,7 +32,10 @@ class ImageMetadata(Base):
     tags            = Column(Text)
     captured_at     = Column(DateTime)
     normalized_at   = Column(DateTime)
-    aesthetic_score = Column(Float, nullable=True)  # 0.0–1.0; stored pre-scale, normalised to 0–10 in manifests
+    aesthetic_score         = Column(Float, nullable=True)   # 0.0–1.0; stored pre-scale, normalised to 0–10 in manifests
+    dataset_aesthetic_score = Column(Float, nullable=True)
+    aesthetic_model_version = Column(String, nullable=True)
+    aesthetic_score_date    = Column(DateTime, nullable=True)
 
 
 class ProcessingJob(Base):
@@ -61,7 +64,6 @@ class FeedbackEvent(Base):
     clicked         = Column(Boolean)
     favorited       = Column(Boolean)
     semantic_score  = Column(Float)
-    aesthetic_score = Column(Float)
     model_version   = Column(String)
     timestamp       = Column(DateTime, default=datetime.utcnow)
 

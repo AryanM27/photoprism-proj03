@@ -13,7 +13,7 @@ def test_feedback_event_has_all_required_fields():
     events = generate_feedback_session("u1", "beach", image_ids)
     required = {
         "event_id", "user_id", "query_id", "image_id", "shown_rank",
-        "clicked", "favorited", "semantic_score", "aesthetic_score",
+        "clicked", "favorited", "semantic_score",
         "model_version", "timestamp",
     }
     assert all(required <= set(e.keys()) for e in events)
@@ -54,11 +54,6 @@ def test_n_shown_capped_at_pool_size():
     events = generate_feedback_session("u1", "test", image_ids, n_shown=20)
     assert len(events) == 5
 
-
-def test_aesthetic_score_in_valid_range():
-    image_ids = [f"img_{i}" for i in range(50)]
-    events = generate_feedback_session("u1", "portrait", image_ids, n_shown=10)
-    assert all(0.0 <= e["aesthetic_score"] <= 1.0 for e in events)
 
 
 def test_model_version_propagated():

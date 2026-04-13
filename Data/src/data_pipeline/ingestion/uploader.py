@@ -61,7 +61,7 @@ def upload_image(event: dict, db: Session) -> dict:
 
     ext = file_path.suffix.lower()
     storage_key = f"{S3_PREFIX}/raw/{image_id}{ext}"
-    image_uri = f"s3://{BUCKET}/{storage_key}"
+    image_uri = f"swift://{BUCKET}/{storage_key}"
 
     # Upload to MinIO
     s3 = _s3_client()

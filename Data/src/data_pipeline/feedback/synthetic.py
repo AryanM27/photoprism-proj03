@@ -54,7 +54,6 @@ def generate_feedback_session(
             "clicked":         random.random() < click_prob,
             "favorited":       random.random() < fav_prob,
             "semantic_score":  round(random.uniform(0.3, 1.0), 4),
-            "aesthetic_score": round(random.uniform(0.2, 1.0), 4),
             "model_version":   model_version,
             "timestamp":       now,
         })

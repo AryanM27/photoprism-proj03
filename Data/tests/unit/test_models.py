@@ -13,7 +13,7 @@ def test_feedback_event_has_required_fields():
     event = FeedbackEvent(
         event_id="e1", user_id="u1", query_id="q1", image_id="img_001",
         shown_rank=1, clicked=True, favorited=False,
-        semantic_score=0.8, aesthetic_score=0.6, model_version="v1"
+        semantic_score=0.8, model_version="v1"
     )
     assert event.clicked is True
     assert event.model_version == "v1"
