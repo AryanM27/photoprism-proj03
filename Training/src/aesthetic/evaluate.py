@@ -3,6 +3,7 @@ from typing import Dict, Optional
 
 import torch
 import torch.nn.functional as F
+from torch.utils.data.dataloader import default_collate
 
 from src.aesthetic.model import build_aesthetic_model
 from src.common.checkpointing import build_checkpoint_dir
@@ -13,6 +14,12 @@ def get_device(device_str: str) -> torch.device:
     if device_str == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(device_str)
+
+def safe_collate(batch):
+    batch = [item for item in batch if item is not None]
+    if len(batch) == 0:
+        return None
+    return default_collate(batch)
 
 def _resolve_manifest_ref_for_split(config: dict, split: str) -> str:
     dataset_cfg = config.get("dataset", {})
@@ -65,6 +72,8 @@ def evaluate_model(model, dataloader, device) -> Dict[str, float]:
 
     with torch.inference_mode():
         for batch in dataloader:
+            if batch is None:
+                continue
             images = batch["image_tensor"].to(device)
             targets = batch["aesthetic_score"].to(device).float()
 
@@ -111,7 +120,7 @@ def run_aesthetic_evaluation_for_split(
     eval_cfg = config.get("evaluation", {})
     eval_device_str = eval_cfg.get("device", "cpu")
     device = get_device(eval_device_str)
-    
+
     dataset_cfg = config["dataset"]
 
     dataset = AestheticDataset(
@@ -129,6 +138,7 @@ def run_aesthetic_evaluation_for_split(
         batch_size=eval_cfg.get("batch_size", config["training"]["batch_size"]),
         shuffle=False,
         num_workers=config["runtime"].get("num_workers", 0),
+        collate_fn=safe_collate,
     )
 
     model = build_aesthetic_model(config).to(device)

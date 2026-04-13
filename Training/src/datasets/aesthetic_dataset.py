@@ -2,8 +2,11 @@ import random
 from typing import Optional
 from pathlib import Path
 from typing import Dict, List
-from PIL import Image
+from PIL import Image, ImageFile, ImageOps
+import warnings
 from torch.utils.data import Dataset
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 from src.datasets.transforms import get_eval_transforms
 from src.datasets.uri_resolver import cache_image_from_uri
@@ -52,13 +55,20 @@ class AestheticDataset(Dataset):
     def __getitem__(self, idx):
         record = self.records[idx]
 
-        image_ref = record.get("image_path") or record.get("image_uri")
-        resolved_image_path = cache_image_from_uri(self.config, image_ref)
-        record["resolved_image_path"] = resolved_image_path
-        image = Image.open(record["resolved_image_path"]).convert("RGB")
-        image_tensor = self.transforms(image)
+        try:
+            image_ref = record.get("image_path") or record.get("image_uri")
+            resolved_image_path = cache_image_from_uri(self.config, image_ref)
+            record["resolved_image_path"] = resolved_image_path
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
 
-        return {
+                with Image.open(record["resolved_image_path"]) as img:
+                    img = ImageOps.exif_transpose(img)
+                    img = img.convert("RGB")
+
+            image_tensor = self.transforms(img)
+
+            return {
             "record_id": record["record_id"],
             "image_id": record["image_id"],
             "image_ref": image_ref,
@@ -68,4 +78,8 @@ class AestheticDataset(Dataset):
             "split": record["split"],
             "dataset_version": record["dataset_version"],
             "source_dataset": record["source_dataset"],
-        }
+            }
+        
+        except Exception as e:
+            print(f"WARNING: Skipping bad image at idx={idx}: {e}", flush=True)
+            return None

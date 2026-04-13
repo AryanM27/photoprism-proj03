@@ -7,6 +7,8 @@ from src.storage.checkpoint_sync import (
     sync_checkpoint_dir_to_remote,
 )
 
+from torch.utils.data.dataloader import default_collate
+
 from src.aesthetic.evaluate import (
     evaluate_model,
     run_aesthetic_evaluation_for_split,
@@ -52,9 +54,14 @@ def get_device(device_str: str) -> torch.device:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(device_str)
 
+def safe_collate(batch):
+    batch = [item for item in batch if item is not None]
+    if len(batch) == 0:
+        return None
+    return default_collate(batch)
 
-def make_loader(dataset, batch_size: int, shuffle: bool):
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+def make_loader(dataset, batch_size: int, shuffle: bool, safe_collate):
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=safe_collate,)
 
 
 def run_one_epoch(model, loader, criterion, optimizer, device, train: bool):
@@ -68,6 +75,8 @@ def run_one_epoch(model, loader, criterion, optimizer, device, train: bool):
     total_samples = 0
 
     for batch in loader:
+        if batch is None:
+            continue
         images = batch["image_tensor"].to(device)
         targets = batch["aesthetic_score"].to(device).float()
 
@@ -385,11 +394,13 @@ def train_aesthetic_baseline(config_path: str) -> dict:
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
+        safe_collate=safe_collate,
     )
     val_loader = make_loader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
+        safe_collate=safe_collate,
     )
 
     training_start_time = time.time()

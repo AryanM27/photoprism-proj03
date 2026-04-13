@@ -1,5 +1,5 @@
-experiment_name: aesthetic_mobilenet_v3_large_fusion_real_v1
-candidate_name: aesthetic_mobilenet_v3_large_fusion_real_v1
+experiment_name: aesthetic_mobilenet_v3_large_fusion_real_v2
+candidate_name: aesthetic_mobilenet_v3_large_fusion_real_v2
 
 task: aesthetic
 
@@ -13,7 +13,7 @@ dataset:
 model:
   type: mobilenet_v3_large_fusion
   family: fusion_head
-  version: aesthetic-mobilenet-v3-large-fusion-v1
+  version: aesthetic-mobilenet-v3-large-fusion-v2
   image_size: 224
   pretrained: true
   hidden_dim: 640
@@ -24,9 +24,9 @@ training:
   epochs: 8
   learning_rate: 0.0002
   weight_decay: 0.0001
-  resume: always
-  advance_chunk_on_resume: true
-  carry_optimizer_to_next_chunk: true
+  resume: never
+  advance_chunk_on_resume: false
+  carry_optimizer_to_next_chunk: false
   log_every_n_batches: 50
 
 evaluation:
