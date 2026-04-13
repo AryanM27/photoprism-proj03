@@ -320,7 +320,7 @@ class MobileNetV3LargeFusionAestheticRegressor(nn.Module):
         #MobileNetV3-Large feature dims from torchvision backbone:
         #mid-level feature after block index 10 -> 112 channels
         #final feature after last block -> 960 channels
-        self.mid_dim = 112
+        self.mid_dim = 80
         self.final_dim = 960
         fused_dim = self.mid_dim + self.final_dim
 
