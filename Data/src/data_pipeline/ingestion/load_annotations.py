@@ -14,9 +14,9 @@ Two CSVs are supported:
    - vote_i values are score-distribution fractions that sum to ~1.0.
    - Weighted mean  = sum((i+1) * vote_{i+1} for i in range(10))   → range [1, 10]
    - Normalized     = (weighted_mean - 1) / 9.0                     → range [0, 1]
-   - One FeedbackEvent row is INSERTed per image with user_id and query_id both
-     set to "ava_ground_truth".  Rows whose image_id is not found in image_metadata
-     are skipped.
+   - Updates the ImageMetadata row: sets aesthetic_score, dataset_aesthetic_score,
+     aesthetic_model_version='ava_ground_truth', aesthetic_score_date.
+     Rows whose image_id is not found in image_metadata are skipped.
 
 image_id convention (must match scanner.py):
    image_id = hashlib.md5(filename.encode()).hexdigest()
@@ -28,11 +28,10 @@ import argparse
 import csv
 import hashlib
 import logging
-import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from src.data_pipeline.db.models import FeedbackEvent, ImageMetadata
+from src.data_pipeline.db.models import ImageMetadata
 from src.data_pipeline.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -120,7 +119,7 @@ def load_flickr30k(csv_path: str) -> tuple[int, int]:
 # ---------------------------------------------------------------------------
 
 def load_ava(csv_path: str) -> tuple[int, int]:
-    """Read *ground_truth_dataset.csv* and insert FeedbackEvent rows for AVA images.
+    """Read *ground_truth_dataset.csv* and update ImageMetadata rows for AVA images.
 
     Parameters
     ----------
@@ -129,11 +128,11 @@ def load_ava(csv_path: str) -> tuple[int, int]:
 
     Returns
     -------
-    (inserted, skipped)
-        inserted — number of FeedbackEvent rows successfully inserted.
-        skipped  — number of rows whose image_id was not found in image_metadata.
+    (updated, skipped)
+        updated — number of ImageMetadata rows successfully updated.
+        skipped — number of rows whose image_id was not found in image_metadata.
     """
-    inserted = 0
+    updated = 0
     skipped = 0
 
     logger.info("Reading AVA CSV: %s", csv_path)
@@ -142,15 +141,15 @@ def load_ava(csv_path: str) -> tuple[int, int]:
     try:
         with open(csv_path, newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh)
-            batch: list[FeedbackEvent] = []
+            batch_count = 0
 
             for row in reader:
                 image_num = row["image_num"].strip()
                 filename = f"{image_num}.jpg"
                 image_id = _md5_id(filename)
 
-                # Verify the image exists in image_metadata
-                if db.get(ImageMetadata, image_id) is None:
+                meta = db.get(ImageMetadata, image_id)
+                if meta is None:
                     logger.debug(
                         "image_id not found in image_metadata, skipping: %s (%s)",
                         image_id, filename,
@@ -158,15 +157,9 @@ def load_ava(csv_path: str) -> tuple[int, int]:
                     skipped += 1
                     continue
 
-                # Idempotency: skip if an AVA ground-truth event already exists
-                already_exists = (
-                    db.query(FeedbackEvent)
-                    .filter_by(image_id=image_id, user_id="ava_ground_truth")
-                    .first()
-                    is not None
-                )
-                if already_exists:
-                    logger.debug("AVA event already exists, skipping: %s", image_id)
+                # Idempotency: skip if dataset_aesthetic_score is already set
+                if meta.dataset_aesthetic_score is not None:
+                    logger.debug("AVA score already loaded, skipping: %s", image_id)
                     skipped += 1
                     continue
 
@@ -180,28 +173,22 @@ def load_ava(csv_path: str) -> tuple[int, int]:
                     max(0.0, min(1.0, (weighted_sum - 1.0) / 9.0)), 6
                 )
 
-                event = FeedbackEvent(
-                    event_id=str(uuid.uuid4()),
-                    user_id="ava_ground_truth",
-                    query_id="ava_ground_truth",
-                    image_id=image_id,
-                    aesthetic_score=score_normalized,
-                    timestamp=datetime.now(timezone.utc),
-                )
-                batch.append(event)
+                meta.aesthetic_score = score_normalized
+                meta.dataset_aesthetic_score = score_normalized
+                meta.aesthetic_model_version = "ava_ground_truth"
+                meta.aesthetic_score_date = datetime.now(timezone.utc)
+                batch_count += 1
 
-                if len(batch) >= _COMMIT_BATCH:
-                    db.add_all(batch)
+                if batch_count >= _COMMIT_BATCH:
                     db.commit()
-                    inserted += len(batch)
-                    logger.info("Committed batch — inserted so far: %d", inserted)
-                    batch = []
+                    updated += batch_count
+                    logger.info("Committed batch — updated so far: %d", updated)
+                    batch_count = 0
 
-            # Commit any remaining rows
-            if batch:
-                db.add_all(batch)
+            # Commit any remaining updates
+            if batch_count:
                 db.commit()
-                inserted += len(batch)
+                updated += batch_count
 
     except Exception:
         db.rollback()
@@ -210,8 +197,8 @@ def load_ava(csv_path: str) -> tuple[int, int]:
     finally:
         db.close()
 
-    logger.info("AVA done: inserted=%d skipped=%d", inserted, skipped)
-    return inserted, skipped
+    logger.info("AVA done: updated=%d skipped=%d", updated, skipped)
+    return updated, skipped
 
 
 # ---------------------------------------------------------------------------
@@ -248,5 +235,5 @@ if __name__ == "__main__":
         print(f"Flickr30k: updated={f_updated} skipped={f_skipped}")
 
     if args.ava:
-        a_inserted, a_skipped = load_ava(args.ava)
-        print(f"AVA: inserted={a_inserted} skipped={a_skipped}")
+        a_updated, a_skipped = load_ava(args.ava)
+        print(f"AVA: updated={a_updated} skipped={a_skipped}")

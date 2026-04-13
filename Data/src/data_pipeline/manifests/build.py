@@ -29,7 +29,7 @@ import logging
 import argparse
 from datetime import datetime, timezone
 
-# Aesthetic scores from FeedbackEvent are stored in 0–1 range.
+# Aesthetic scores in image_metadata are stored in 0–1 range.
 # Training lead expects 0–10 scale.
 _AESTHETIC_SCALE = 10.0
 
@@ -161,7 +161,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
     Each record: record_id, image_id, image_uri, split, dataset_version,
                  source_dataset, aesthetic_score (0–10 scale).
 
-    - aesthetic_score is averaged across all FeedbackEvent rows per image,
+    - aesthetic_score is read directly from image_metadata.aesthetic_score,
       then multiplied by 10 to normalise from the stored 0–1 range to 0–10.
     - image_uri: stable s3:// URI, never a local path.
     - Anti-leakage: split is read from images.split, never re-derived here.
@@ -169,41 +169,23 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
 
     Returns dict with counts per split.
     """
-    from src.data_pipeline.db.models import FeedbackEvent
-    from sqlalchemy import func
-
     db = SessionLocal()
     s3 = _s3_client()
     try:
-        # AVG as proxy for median (Postgres lacks MEDIAN).
-        # Scores are stored in 0–1 range; normalised to 0–10 at record build time.
-        score_subq = (
-            db.query(
-                FeedbackEvent.image_id,
-                func.avg(FeedbackEvent.aesthetic_score).label("aesthetic_score"),
-            )
-            .filter(FeedbackEvent.aesthetic_score.isnot(None))
-            .group_by(FeedbackEvent.image_id)
-            .subquery()
-        )
-
         query = (
-            db.query(Image, score_subq.c.aesthetic_score)
-            .join(score_subq, Image.image_id == score_subq.c.image_id)
+            db.query(Image, ImageMetadata)
+            .join(ImageMetadata, Image.image_id == ImageMetadata.image_id)
             .filter(Image.status == "validated")
             .filter(Image.split.isnot(None))
-            .filter(score_subq.c.aesthetic_score.isnot(None))
+            .filter(ImageMetadata.aesthetic_score.isnot(None))
             .filter(Image.source_dataset.notin_(SEMANTIC_ONLY_DATASETS))
         )
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
 
         train_records, test_records = [], []
-        for image, score in query.all():
-            if score is None:
-                logger.warning(f"Skipping {image.image_id}: null aesthetic_score after join")
-                continue
-            raw_score = float(score)
+        for image, meta in query.all():
+            raw_score = float(meta.aesthetic_score)
             if not (0.0 <= raw_score <= 1.0):
                 logger.warning(
                     f"aesthetic_score {raw_score} for {image.image_id} is outside [0,1]; clamping."

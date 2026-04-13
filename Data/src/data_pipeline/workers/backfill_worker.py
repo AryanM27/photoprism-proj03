@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from src.data_pipeline.workers.celery_app import app
 from src.data_pipeline.db.session import SessionLocal
-from src.data_pipeline.db.models import Image, ProcessingJob
+from src.data_pipeline.db.models import Image, ImageMetadata, ProcessingJob
 from src.data_pipeline.workers.embedding_worker import embed_image
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
     max_retries=3,
     default_retry_delay=60,
 )
-def reprocess_image(self, image_id: str, model_version: str) -> dict:
+def reprocess_image(self, image_id: str, model_version: str, aesthetic_score: float | None = None) -> dict:
     """Re-embed image_id using the embedding worker, update processing job status."""
     db = SessionLocal()
     try:
@@ -34,6 +34,15 @@ def reprocess_image(self, image_id: str, model_version: str) -> dict:
         image.embedding_status = "pending"
         image.model_version = None
         image.embedded_at = None
+
+        if aesthetic_score is not None:
+            image_metadata = db.query(ImageMetadata).filter_by(image_id=image_id).first()
+            if image_metadata is not None:
+                image_metadata.aesthetic_score = aesthetic_score
+                image_metadata.aesthetic_model_version = model_version
+                image_metadata.aesthetic_score_date = datetime.now(timezone.utc)
+            else:
+                logger.warning("No ImageMetadata row for image_id=%s; aesthetic_score not persisted.", image_id)
 
         job = (
             db.query(ProcessingJob)
