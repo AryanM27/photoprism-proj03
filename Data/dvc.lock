@@ -10,9 +10,9 @@ stages:
       size: 214
     - path: src/data_pipeline/manifests/batch_build.py
       hash: md5
-      md5: 802821898e69d191b7efdb5d4b626179
-      size: 2444
+      md5: cffeb99ab95e0401262c74198e637e7c
+      size: 2460
     - path: src/data_pipeline/manifests/build.py
       hash: md5
-      md5: 945697e1aec1bd7ea6fb65d6a3bf888e
-      size: 14625
+      md5: d7be9668cdc7b46face5051f18c85ef2
+      size: 15632
