@@ -1,5 +1,5 @@
 import io
-import urllib.request
+import os
 
 import torch
 import torch.nn as nn
@@ -8,21 +8,17 @@ from PIL import Image
 from torchvision import models
 
 
-class NIMA(nn.Module):
-    """Neural Image Assessment model — predicts aesthetic quality score (1-10)."""
+class AestheticRegressor(nn.Module):
+    """ResNet18 scalar regressor — matches Milind's training architecture (resnet18_linear)."""
 
     def __init__(self):
         super().__init__()
-        base = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
-        base.classifier = nn.Sequential(
-            nn.Dropout(p=0.2),
-            nn.Linear(base.last_channel, 10),
-            nn.Softmax(dim=1),
-        )
+        base = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        base.fc = nn.Linear(512, 1)
         self.model = base
 
     def forward(self, x):
-        return self.model(x)
+        return self.model(x).squeeze(1)   # (batch,) scalar
 
 
 _TRANSFORM = transforms.Compose([
@@ -32,26 +28,26 @@ _TRANSFORM = transforms.Compose([
                          std=[0.229, 0.224, 0.225]),
 ])
 
-_BINS = torch.arange(1, 11, dtype=torch.float32)  # quality buckets 1-10
-
 
 class AestheticRanker:
-    def __init__(self, device_str: str = "auto"):
+    def __init__(self, device_str: str = "auto", checkpoint_path: str = None):
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
             if device_str == "auto" else device_str
         )
-        self.model = NIMA().to(self.device).eval()
-        self._bins = _BINS.to(self.device)
+        self.model = AestheticRegressor().to(self.device).eval()
+
+        if checkpoint_path and os.path.isfile(checkpoint_path):
+            ckpt = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
+            self.model.load_state_dict(ckpt["model_state_dict"])
 
     @torch.no_grad()
     def score_image_bytes(self, image_bytes: bytes) -> float:
         """Return aesthetic score (1.0–10.0) for raw image bytes."""
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         tensor = _TRANSFORM(img).unsqueeze(0).to(self.device)
-        dist = self.model(tensor)           # (1, 10) probability distribution
-        score = (dist * self._bins).sum().item()
-        return round(score, 4)
+        score = self.model(tensor).item()
+        return round(float(torch.clamp(torch.tensor(score), 1.0, 10.0).item()), 4)
 
     @torch.no_grad()
     def score_image_path(self, path: str) -> float:
