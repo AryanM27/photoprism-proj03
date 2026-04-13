@@ -134,8 +134,10 @@ def run_aesthetic_evaluation_for_split(
     if checkpoint_path is None:
         checkpoint_path = _resolve_checkpoint_path(config)
 
-    state = torch.load(checkpoint_path, map_location=str(device))
+    state = torch.load(checkpoint_path, map_location="cpu")
     model.load_state_dict(state["model_state_dict"])
+
+    model.eval()
 
     metrics = evaluate_model(model, dataloader, device)
     prefixed_metrics = _prefix_metrics(metrics, split)
