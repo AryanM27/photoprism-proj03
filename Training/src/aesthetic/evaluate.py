@@ -118,7 +118,7 @@ def run_aesthetic_evaluation_for_split(
         image_size=config["model"]["image_size"],
         split=split,
         start_index=dataset_cfg.get("start_index", 0),
-        max_records=eval_cfg.get("max_records", None),
+        max_records=eval_cfg.get("max_records", 2500),
         subset_seed=dataset_cfg.get("subset_seed", None),
     )
 
