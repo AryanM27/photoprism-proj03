@@ -22,6 +22,9 @@ services:
       - MODEL_VERSION=clip-ViT-B-32-v1
       - DEVICE=auto
       - DATABASE_URL=${DATABASE_URL:-}
+      # Uncomment when Milind provides aesthetic checkpoint:
+      # - AESTHETIC_CHECKPOINT_PATH=/checkpoints/aesthetic/best.pt
+      # - CHECKPOINT_PATH=/checkpoints/semantic/
     depends_on:
       - qdrant
     volumes:

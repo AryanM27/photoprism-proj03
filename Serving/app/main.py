@@ -31,7 +31,10 @@ async def lifespan(app: FastAPI):
             checkpoint_path=os.getenv("CHECKPOINT_PATH", None),
         )
 
-    app.state.ranker = AestheticRanker(device_str=os.getenv("DEVICE", "auto"))
+    app.state.ranker = AestheticRanker(
+        device_str=os.getenv("DEVICE", "auto"),
+        checkpoint_path=os.getenv("AESTHETIC_CHECKPOINT_PATH", None),
+    )
     ensure_collection(get_client())
     yield
 
