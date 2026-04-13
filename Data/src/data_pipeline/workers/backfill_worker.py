@@ -22,18 +22,17 @@ logger = logging.getLogger(__name__)
     max_retries=3,
     default_retry_delay=60,
 )
-def reprocess_image(self, image_id: str, model_version: str, aesthetic_score: float | None = None) -> dict:
-    """Re-embed image_id using the embedding worker, update processing job status."""
+def reprocess_image(self, image_id: str, model_version: str, aesthetic_score: float | None = None, reembed: bool = True) -> dict:
     db = SessionLocal()
     try:
         image = db.query(Image).filter_by(image_id=image_id).first()
         if image is None:
             raise ValueError(f"Image {image_id} not found")
 
-        # Reset embedding status so embedding_worker re-processes it
-        image.embedding_status = "pending"
-        image.model_version = None
-        image.embedded_at = None
+        if reembed:
+            image.embedding_status = "pending"
+            image.model_version = None
+            image.embedded_at = None
 
         if aesthetic_score is not None:
             image_metadata = db.query(ImageMetadata).filter_by(image_id=image_id).first()
@@ -51,26 +50,25 @@ def reprocess_image(self, image_id: str, model_version: str, aesthetic_score: fl
             .first()
         )
         if job:
-            job.status = "running"
+            job.status = "running" if reembed else "done"
 
         db.commit()
 
-        # Dispatch to embedding worker (reuses full encode→upsert pipeline).
-        # Job stays at "running" — the embedding worker is responsible for marking it "done".
-        try:
-            embed_image.delay(image_id)
-        except Exception as broker_exc:
-            logger.warning(
-                "embed_image.delay() failed for image_id=%s; resetting job to queued for retry. Error: %s",
-                image_id, broker_exc,
-            )
-            if job:
-                job.status = "queued"
-                db.commit()
-            raise
+        if reembed:
+            try:
+                embed_image.delay(image_id)
+            except Exception as broker_exc:
+                logger.warning(
+                    "embed_image.delay() failed for image_id=%s; resetting job to queued for retry. Error: %s",
+                    image_id, broker_exc,
+                )
+                if job:
+                    job.status = "queued"
+                    db.commit()
+                raise
 
         logger.info("Backfill dispatched for %s (model=%s)", image_id, model_version)
-        return {"status": "dispatched", "image_id": image_id, "model_version": model_version}
+        return {"status": "dispatched", "image_id": image_id, "model_version": model_version, "reembed": reembed}
 
     except Exception as exc:
         db.rollback()
