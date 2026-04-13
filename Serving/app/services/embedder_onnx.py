@@ -18,6 +18,7 @@ class OnnxEmbedder:
         text_onnx_path: str = "checkpoints/text_encoder.onnx",
         image_onnx_path: str = "checkpoints/image_encoder.onnx",
     ):
+        self._model_name = model_name
         self.tokenizer = open_clip.get_tokenizer(model_name)
         self.text_session = ort.InferenceSession(
             text_onnx_path, providers=["CPUExecutionProvider"]
@@ -25,6 +26,10 @@ class OnnxEmbedder:
         self.image_session = ort.InferenceSession(
             image_onnx_path, providers=["CPUExecutionProvider"]
         )
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
 
     def embed_text(self, text: str) -> list[float]:
         tokens = self.tokenizer([text]).numpy()
