@@ -24,6 +24,7 @@ services:
       - DATABASE_URL=${DATABASE_URL:-}
       # Uncomment when Milind provides aesthetic checkpoint:
       # - AESTHETIC_CHECKPOINT_PATH=/checkpoints/aesthetic/best.pt
+      # - AESTHETIC_MODEL_TYPE=mobilenet_v3_large_fusion
       # - CHECKPOINT_PATH=/checkpoints/semantic/
     depends_on:
       - qdrant
