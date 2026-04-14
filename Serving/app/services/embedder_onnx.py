@@ -14,7 +14,7 @@ _TRANSFORM = transforms.Compose([
 class OnnxEmbedder:
     def __init__(
         self,
-        model_name: str = "ViT-B-32",
+        model_name: str = "clip-ViT-B-32",
         text_onnx_path: str = "checkpoints/text_encoder.onnx",
         image_onnx_path: str = "checkpoints/image_encoder.onnx",
     ):
