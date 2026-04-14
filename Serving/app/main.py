@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
     app.state.ranker = AestheticRanker(
         device_str=os.getenv("DEVICE", "auto"),
         checkpoint_path=os.getenv("AESTHETIC_CHECKPOINT_PATH", None),
+        model_type=os.getenv("AESTHETIC_MODEL_TYPE", "resnet18_linear"),
     )
     ensure_collection(get_client())
     yield

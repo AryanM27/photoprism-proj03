@@ -36,11 +36,11 @@ def log_search(query: str, results: list[dict]):
                 text("""
                     INSERT INTO feedback_events
                         (event_id, user_id, query_id, image_id, shown_rank,
-                         clicked, favorited, semantic_score, aesthetic_score,
+                         clicked, favorited, semantic_score,
                          model_version, timestamp)
                     VALUES
                         (:event_id, :user_id, :query_id, :image_id, :shown_rank,
-                         :clicked, :favorited, :semantic_score, :aesthetic_score,
+                         :clicked, :favorited, :semantic_score,
                          :model_version, :timestamp)
                 """),
                 {
@@ -52,7 +52,6 @@ def log_search(query: str, results: list[dict]):
                     "clicked": False,
                     "favorited": False,
                     "semantic_score": float(item.get("score", 0.0)),
-                    "aesthetic_score": float(item.get("aesthetic_score") or 0.0),
                     "model_version": MODEL_VERSION,
                     "timestamp": datetime.utcnow(),
                 },
