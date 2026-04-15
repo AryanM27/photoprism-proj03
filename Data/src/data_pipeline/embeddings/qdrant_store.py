@@ -21,7 +21,7 @@ def _stable_uint64(image_id: str) -> int:
 class QdrantStore:
     """Manages Qdrant collection setup, upserts, and ANN search."""
 
-    def __init__(self, host: str, port: int, collection: str):
+    def __init__(self, host: str, port: int, collection: str = "photos"):
         self._client = QdrantClient(host=host, port=port)
         self.collection = collection
 
