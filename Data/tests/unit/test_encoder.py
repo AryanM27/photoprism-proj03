@@ -8,9 +8,15 @@ from src.data_pipeline.embeddings.encoder import CLIPEncoder
 def _make_encoder(raw_vec: np.ndarray) -> CLIPEncoder:
     encoder = CLIPEncoder.__new__(CLIPEncoder)
     encoder.model_name = "clip-ViT-B-32"
+    encoder.VECTOR_DIM = 512
     fake_model = MagicMock()
-    fake_model.encode.return_value = raw_vec
+    fake_result = MagicMock()
+    fake_result.cpu.return_value.numpy.return_value = raw_vec
+    fake_model.encode_image.return_value = fake_result
+    fake_model.encode_text.return_value = fake_result
     encoder._model = fake_model
+    encoder._transform = MagicMock()
+    encoder._tokenizer = MagicMock()
     return encoder
 
 
