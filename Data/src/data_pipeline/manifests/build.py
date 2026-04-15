@@ -81,19 +81,51 @@ def _upload_jsonl(s3, key: str, records: list[dict]) -> int:
     return len(records)
 
 
-def _record_snapshot(db, version: str, manifest_path: str, record_count: int, manifest_type: str) -> None:
-    snap = DatasetSnapshot(
+def _delete_s3_keys(s3, keys: list[str]) -> None:
+    for key in keys:
+        try:
+            s3.delete_object(Bucket=BUCKET, Key=key)
+            logger.info(f"Deleted s3://{BUCKET}/{key}")
+        except Exception as e:
+            logger.warning(f"Could not delete s3://{BUCKET}/{key}: {e}")
+
+
+def _upsert_default_snapshot(db, version: str, manifest_path: str, record_count: int, manifest_type: str) -> None:
+    existing = (
+        db.query(DatasetSnapshot)
+        .filter_by(version_tag=version, manifest_type=manifest_type, manifest_path=manifest_path)
+        .first()
+    )
+    if existing:
+        existing.record_count = record_count
+        existing.created_at = datetime.now(timezone.utc)
+    else:
+        db.add(DatasetSnapshot(
+            snapshot_id=str(uuid.uuid4()),
+            version_tag=version,
+            manifest_path=manifest_path,
+            record_count=record_count,
+            split_strategy=SPLIT_STRATEGY,
+            manifest_type=manifest_type,
+            created_at=datetime.now(timezone.utc),
+        ))
+    db.commit()
+    logger.info(f"Upserted default snapshot: {version} — {manifest_path} ({record_count} rows)")
+
+
+def _insert_dated_snapshot(db, version: str, ts: str, prefix: str, record_count: int, manifest_type: str) -> None:
+    dated_path = f"s3://{BUCKET}/{prefix}/"
+    db.add(DatasetSnapshot(
         snapshot_id=str(uuid.uuid4()),
         version_tag=version,
-        manifest_path=manifest_path,
+        manifest_path=dated_path,
         record_count=record_count,
         split_strategy=SPLIT_STRATEGY,
-        created_at=datetime.now(timezone.utc),
         manifest_type=manifest_type,
-    )
-    db.add(snap)
+        created_at=datetime.now(timezone.utc),
+    ))
     db.commit()
-    logger.info(f"Recorded snapshot: {version} — {manifest_path} ({record_count} rows)")
+    logger.info(f"Inserted dated snapshot: {version} — {dated_path} ({record_count} rows)")
 
 
 def build_semantic_manifests(version: str, source_dataset: str | None = None) -> dict:
@@ -112,6 +144,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
     """
     db = SessionLocal()
     s3 = _s3_client()
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     try:
         query = (
             db.query(Image, ImageMetadata)
@@ -144,11 +177,25 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
                 train_records.append(record)  # train + val combined
 
         prefix = f"{S3_PREFIX}/manifests/{version}"
+
+        # Delete old default manifests before uploading new ones
+        _delete_s3_keys(s3, [
+            f"{prefix}/semantic_train.jsonl",
+            f"{prefix}/semantic_test.jsonl",
+        ])
+
+        # Upload default (canonical) manifests
         train_count = _upload_jsonl(s3, f"{prefix}/semantic_train.jsonl", train_records)
         test_count  = _upload_jsonl(s3, f"{prefix}/semantic_test.jsonl",  test_records)
 
+        # Upload dated copies into a versioned subfolder
+        dated_prefix = f"{S3_PREFIX}/manifests/{version}_{ts}"
+        _upload_jsonl(s3, f"{dated_prefix}/semantic_train.jsonl", train_records)
+        _upload_jsonl(s3, f"{dated_prefix}/semantic_test.jsonl",  test_records)
+
         manifest_path = f"s3://{BUCKET}/{prefix}/"
-        _record_snapshot(db, version, manifest_path, train_count + test_count, "semantic")
+        _upsert_default_snapshot(db, version, manifest_path, train_count + test_count, "semantic")
+        _insert_dated_snapshot(db, version, ts, dated_prefix, train_count + test_count, "semantic")
 
         return {"train": train_count, "test": test_count}
     finally:
@@ -171,6 +218,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
     """
     db = SessionLocal()
     s3 = _s3_client()
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     try:
         query = (
             db.query(Image, ImageMetadata)
@@ -206,11 +254,25 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
                 train_records.append(record)  # train + val combined
 
         prefix = f"{S3_PREFIX}/manifests/{version}"
+
+        # Delete old default manifests before uploading new ones
+        _delete_s3_keys(s3, [
+            f"{prefix}/aesthetic_train.jsonl",
+            f"{prefix}/aesthetic_test.jsonl",
+        ])
+
+        # Upload default (canonical) manifests
         train_count = _upload_jsonl(s3, f"{prefix}/aesthetic_train.jsonl", train_records)
         test_count  = _upload_jsonl(s3, f"{prefix}/aesthetic_test.jsonl",  test_records)
 
+        # Upload dated copies into a versioned subfolder
+        dated_prefix = f"{S3_PREFIX}/manifests/{version}_{ts}"
+        _upload_jsonl(s3, f"{dated_prefix}/aesthetic_train.jsonl", train_records)
+        _upload_jsonl(s3, f"{dated_prefix}/aesthetic_test.jsonl",  test_records)
+
         manifest_path = f"s3://{BUCKET}/{prefix}/"
-        _record_snapshot(db, version, manifest_path, train_count + test_count, "aesthetic")
+        _upsert_default_snapshot(db, version, manifest_path, train_count + test_count, "aesthetic")
+        _insert_dated_snapshot(db, version, ts, dated_prefix, train_count + test_count, "aesthetic")
 
         return {"train": train_count, "test": test_count}
     finally:
