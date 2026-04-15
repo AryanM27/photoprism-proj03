@@ -21,6 +21,8 @@ class OpenCLIPEnhancedSemanticModel(nn.Module):
             model_name, pretrained=pretrained
         )
 
+        self.tokenizer = open_clip.get_tokenizer(model_name)
+
         #freeze partially
         # for name, param in self.clip_model.named_parameters():
         #     if "visual" in name:

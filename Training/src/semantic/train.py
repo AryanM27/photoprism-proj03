@@ -71,7 +71,7 @@ def contrastive_loss(image_emb, text_emb, logit_scale):
 
     return (loss_i + loss_t) / 2.0
 
-def run_one_epoch(model, loader, optimizer, device, train: bool):
+def run_one_epoch(model, loader, optimizer, device, train: bool, config: dict):
     if train:
         model.train()
     else:
@@ -86,14 +86,18 @@ def run_one_epoch(model, loader, optimizer, device, train: bool):
             continue
 
         images = batch["image_tensors"].to(device)
-        text_features = build_text_features(batch["texts"]).to(device)
+
+        if config["model"]["type"]=="openclip_enhanced":
+            text_inputs = model.tokenizer(batch["texts"]).to(device)
+        else:
+            text_inputs = build_text_features(batch["texts"]).to(device)
 
         if train:
             optimizer.zero_grad()
 
         with torch.set_grad_enabled(train):
             image_emb = model.encode_image(images)
-            text_emb = model.encode_text(text_features)
+            text_emb = model.encode_text(text_inputs)
             loss = contrastive_loss(image_emb, text_emb, model.logit_scale)
 
             if train:
@@ -355,6 +359,7 @@ def train_semantic_baseline(config_path: str) -> dict:
                 optimizer=optimizer,
                 device=device,
                 train=True,
+                config = config,
             )
             val_metrics = run_one_epoch(
                 model=model,
@@ -362,6 +367,7 @@ def train_semantic_baseline(config_path: str) -> dict:
                 optimizer=optimizer,
                 device=device,
                 train=False,
+                config = config,
             )
 
             global_step += len(train_loader)

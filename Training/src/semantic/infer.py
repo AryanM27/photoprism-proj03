@@ -196,10 +196,13 @@ def generate_semantic_embeddings(
             print("Reached first inference batch", flush=True)
 
         images = batch["image_tensors"].to(device)
-        text_features = build_text_features(batch["texts"]).to(device)
+        if config["model"]["type"]=="openclip_enhanced":
+            text_inputs = model.tokenizer(batch["texts"]).to(device)
+        else:
+            text_inputs = build_text_features(batch["texts"]).to(device)
 
         image_emb = model.encode_image(images)
-        text_emb = model.encode_text(text_features)
+        text_emb = model.encode_text(text_inputs)
 
         all_image_embeddings.append(image_emb.cpu())
         all_text_embeddings.append(text_emb.cpu())
