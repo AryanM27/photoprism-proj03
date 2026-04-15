@@ -128,7 +128,7 @@ def _insert_dated_snapshot(db, version: str, ts: str, prefix: str, record_count:
     logger.info(f"Inserted dated snapshot: {version} — {dated_path} ({record_count} rows)")
 
 
-def build_semantic_manifests(version: str, source_dataset: str | None = None) -> dict:
+def build_semantic_manifests(version: str, source_dataset: str | None = None, ts: str | None = None) -> dict:
     """Build semantic manifests per training lead schema.
 
     Each record: record_id, image_id, image_uri, split, dataset_version,
@@ -144,7 +144,8 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
     """
     db = SessionLocal()
     s3 = _s3_client()
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    if ts is None:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     try:
         query = (
             db.query(Image, ImageMetadata)
@@ -202,7 +203,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None) ->
         db.close()
 
 
-def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -> dict:
+def build_aesthetic_manifests(version: str, source_dataset: str | None = None, ts: str | None = None) -> dict:
     """Build aesthetic manifests per training lead schema.
 
     Each record: record_id, image_id, image_uri, split, dataset_version,
@@ -218,7 +219,8 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None) -
     """
     db = SessionLocal()
     s3 = _s3_client()
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    if ts is None:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     try:
         query = (
             db.query(Image, ImageMetadata)
@@ -284,6 +286,7 @@ def build_version_metadata(
     semantic_counts: dict | None,
     aesthetic_counts: dict | None,
     source_dataset: str | None = None,
+    ts: str | None = None,
 ) -> str:
     """Upload a metadata.json for a dataset version to S3.
 
@@ -339,6 +342,27 @@ def build_version_metadata(
     )
     uri = f"s3://{BUCKET}/{key}"
     logger.info(f"Uploaded version metadata: {uri}")
+
+    # Also upload a copy to the dated folder with dated URIs
+    if ts is not None:
+        dated_prefix = f"{S3_PREFIX}/manifests/{version}_{ts}"
+        dated_manifest_uris = {}
+        if semantic_counts is not None:
+            dated_manifest_uris["semantic_train"] = f"s3://{BUCKET}/{dated_prefix}/semantic_train.jsonl"
+            dated_manifest_uris["semantic_test"]  = f"s3://{BUCKET}/{dated_prefix}/semantic_test.jsonl"
+        if aesthetic_counts is not None:
+            dated_manifest_uris["aesthetic_train"] = f"s3://{BUCKET}/{dated_prefix}/aesthetic_train.jsonl"
+            dated_manifest_uris["aesthetic_test"]  = f"s3://{BUCKET}/{dated_prefix}/aesthetic_test.jsonl"
+        dated_meta = {**meta, "manifest_uris": dated_manifest_uris}
+        dated_key = f"{dated_prefix}/metadata.json"
+        s3.put_object(
+            Bucket=BUCKET,
+            Key=dated_key,
+            Body=json.dumps(dated_meta, indent=2).encode(),
+            ContentType="application/json",
+        )
+        logger.info(f"Uploaded dated version metadata: s3://{BUCKET}/{dated_key}")
+
     return uri
 
 
