@@ -1,5 +1,5 @@
-experiment_name: semantic_openclip_enhanced_real_v1
-candidate_name: semantic_openclip_enhanced_real_v1
+experiment_name: semantic_openclip_enhanced_real_v2
+candidate_name: semantic_openclip_enhanced_real_v2
 
 task: semantic
 
@@ -13,7 +13,7 @@ dataset:
 model:
   type: openclip_enhanced
   family: semantic_openclip
-  version: semantic-openclip-enhanced-vit-b32-v1
+  version: semantic-openclip-enhanced-vit-b32-v2
   image_size: 224
   model_name: ViT-B-32
   pretrained: laion2b_s34b_b79k
