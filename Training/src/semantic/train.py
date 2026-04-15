@@ -173,7 +173,7 @@ def train_semantic_baseline(config_path: str) -> dict:
         config=config,
         image_size=config["model"]["image_size"],
         split="val",
-        start_index=0,
+        start_index=125,
         max_records=125,
     )
 
