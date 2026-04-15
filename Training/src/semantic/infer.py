@@ -11,7 +11,11 @@ from src.semantic.model import build_semantic_model, build_text_features
 from src.common.checkpointing import build_checkpoint_dir, load_latest_checkpoint
 from src.storage.checkpoint_sync import sync_checkpoint_dir_from_remote
 
-def collate_fn(batch: List[Dict]) -> Dict:
+def collate_fn(batch: List[Dict]) -> Optional[Dict]:
+    batch = [item for item in batch if item is not None]
+    if len(batch) == 0:
+        return None
+    
     return {
         "image_ids": [item["image_id"] for item in batch],
         "texts": [item["text"] for item in batch],
@@ -106,7 +110,7 @@ def _load_checkpoint_into_model(
         return None
 
     print(f"Loading semantic checkpoint into model: {ckpt_path}", flush=True)
-    checkpoint = torch.load(ckpt_path, map_location=device)
+    checkpoint = torch.load(ckpt_path, map_location="cpu")
 
     if isinstance(checkpoint, dict):
         if "model_state_dict" in checkpoint:
@@ -135,7 +139,11 @@ def generate_semantic_embeddings(
 
     eval_cfg = config.get("evaluation", {})
     effective_batch_size = batch_size or eval_cfg.get("batch_size") or config["training"]["batch_size"]
-    device = get_device(config["runtime"]["device"])
+    # device = get_device(config["runtime"]["device"])
+
+    eval_cfg = config.get("evaluation", {})
+    eval_device_str = eval_cfg.get("device", config["runtime"]["device"])
+    device = get_device(eval_device_str)
 
     if checkpoint_path is None:
         checkpoint_path = _resolve_checkpoint_path(config)
@@ -145,7 +153,7 @@ def generate_semantic_embeddings(
     dataset_cfg = config["dataset"]
 
     start_index = dataset_cfg.get("start_index", 0)
-    max_records = dataset_cfg.get("max_records")
+    max_records = eval_cfg.get("max_records", dataset_cfg.get("max_records"))
     subset_seed = dataset_cfg.get("subset_seed")
 
     print(
@@ -181,6 +189,9 @@ def generate_semantic_embeddings(
     all_texts = []
 
     for batch_idx, batch in enumerate(loader):
+        if batch is None:
+            continue
+
         if batch_idx == 0:
             print("Reached first inference batch", flush=True)
 

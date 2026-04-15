@@ -52,6 +52,10 @@ def get_device(device_str: str) -> torch.device:
     return torch.device(device_str)
 
 def collate_fn(batch):
+    batch = [item for item in batch if item is not None]
+    if len(batch) == 0:
+        return None
+
     return {
         "image_ids": [item["image_id"] for item in batch],
         "texts": [item["text"] for item in batch],
@@ -77,6 +81,10 @@ def run_one_epoch(model, loader, optimizer, device, train: bool):
     total_samples = 0
 
     for batch in loader:
+
+        if batch is None:
+            continue
+
         images = batch["image_tensors"].to(device)
         text_features = build_text_features(batch["texts"]).to(device)
 
@@ -161,8 +169,8 @@ def train_semantic_baseline(config_path: str) -> dict:
         config=config,
         image_size=config["model"]["image_size"],
         split="val",
-        start_index=start_index,
-        max_records=2500,
+        start_index=0,
+        max_records=125,
     )
 
     print(f"Train samples: {len(train_dataset)}")
@@ -207,12 +215,14 @@ def train_semantic_baseline(config_path: str) -> dict:
     
     if should_resume and checkpoint_exists(checkpoint_dir):
         print("Will be resuming from checkpoint", flush=True)
-        state, metadata = load_latest_checkpoint(checkpoint_dir, map_location=str(device))
+        # state, metadata = load_latest_checkpoint(checkpoint_dir, map_location=str(device))
+        state, metadata = load_latest_checkpoint(checkpoint_dir, map_location="cpu")
 
         model.load_state_dict(state["model_state_dict"])
         resumed_from_checkpoint = True
 
         advance_chunk = config["training"].get("advance_chunk_on_resume", False)
+        carry_optimizer = config["training"].get("carry_optimizer_to_next_chunk", False)
 
         if advance_chunk:
             next_start = metadata.get("next_start_index")
@@ -241,23 +251,50 @@ def train_semantic_baseline(config_path: str) -> dict:
                 best_metric = float("-inf")
 
                 #carry optimizer state forward
-                if config["training"].get("carry_optimizer_to_next_chunk", True):
-                    if "optimizer_state_dict" in state:
+                if carry_optimizer and "optimizer_state_dict" in state:
+                    try:
                         optimizer.load_state_dict(state["optimizer_state_dict"])
+                        print("Loaded optimizer state for next chunk.", flush=True)
+                    except Exception as e:
+                        print(f"WARNING: Failed to load optimizer state for next chunk. Using fresh optimizer. Error: {e}", flush=True)
                 else:
-                    print("Resetting optimizer state for next chunk", flush=True)
+                    print("Skipping optimizer restore for next chunk.", flush=True)
 
             else:
                 print("advance_chunk_on_resume=True but no next_start_index found; resuming same chunk", flush=True)
 
-                optimizer.load_state_dict(state["optimizer_state_dict"])
-                start_epoch = state["epoch"] + 1
-                global_step = state["global_step"]
+                start_epoch = int(state.get("epoch", 0)) + 1
+                global_step = int(state.get("global_step", 0))
+                best_val_loss = metadata.get("metric_value", best_val_loss)
+
+                if carry_optimizer and "optimizer_state_dict" in state:
+                    try:
+                        optimizer.load_state_dict(state["optimizer_state_dict"])
+                        print("Loaded optimizer state for same chunk resume.", flush=True)
+                    except Exception as e:
+                        print(f"WARNING: Failed to load optimizer state on resume. Using fresh optimizer. Error: {e}", flush=True)
+                else:
+                    print("Skipping optimizer restore for same chunk resume.", flush=True)
 
         else:
-            optimizer.load_state_dict(state["optimizer_state_dict"])
-            start_epoch = state["epoch"] + 1
-            global_step = state["global_step"]
+            start_epoch = int(state.get("epoch", 0)) + 1
+            global_step = int(state.get("global_step", 0))
+            best_val_loss = metadata.get("metric_value", best_val_loss)
+
+            if carry_optimizer and "optimizer_state_dict" in state:
+                try:
+                    optimizer.load_state_dict(state["optimizer_state_dict"])
+                    print("Loaded optimizer state on resume.", flush=True)
+                except Exception as e:
+                    print(f"WARNING: Failed to load optimizer state on resume. Using fresh optimizer. Error: {e}", flush=True)
+            else:
+                print("Skipping optimizer restore on resume.", flush=True)
+
+        print(
+            f"Resume state -> start_epoch: {start_epoch}, epochs: {epochs}, "
+            f"global_step: {global_step}, best_val_loss: {best_val_loss}",
+            flush=True,
+        )
 
     tracking_uri = configure_mlflow(config)
 

@@ -1,7 +1,9 @@
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from PIL import Image
+from PIL import Image, ImageFile, ImageOps
+import warnings
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 from torch.utils.data import Dataset
 import random
 
@@ -55,23 +57,33 @@ class SemanticRetrievalDataset(Dataset):
     def __getitem__(self, index: int) -> Dict:
         record = self.records[index]
 
-        image_ref = record.get("image_path") or record.get("image_uri")
-        resolved_image_path = cache_image_from_uri(self.config, image_ref)
-        record["resolved_image_path"] = resolved_image_path
-        image = Image.open(record["resolved_image_path"]).convert("RGB")
-        image_tensor = self.transforms(image)
+        try:
+            image_ref = record.get("image_path") or record.get("image_uri")
+            resolved_image_path = cache_image_from_uri(self.config, image_ref)
+            record["resolved_image_path"] = resolved_image_path
 
-        
-        return {
-            "record_id": record["record_id"],
-            "image_id": record["image_id"],
-            "image_ref": image_ref,
-            "resolved_image_path": record["resolved_image_path"],
-            "text_id": record["text_id"],
-            "text": record["text"],
-            "split": record["split"],
-            "dataset_version": record["dataset_version"],
-            "source_dataset": record["source_dataset"],
-            "image_tensor": image_tensor,
-            "pair_label": record["pair_label"],
-        }
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                with Image.open(record["resolved_image_path"]) as image:
+                    image = ImageOps.exif_transpose(image)
+                    image = image.convert("RGB")
+
+            image_tensor = self.transforms(image)
+
+            return {
+                "record_id": record["record_id"],
+                "image_id": record["image_id"],
+                "image_ref": image_ref,
+                "resolved_image_path": record["resolved_image_path"],
+                "text_id": record["text_id"],
+                "text": record["text"],
+                "split": record["split"],
+                "dataset_version": record["dataset_version"],
+                "source_dataset": record["source_dataset"],
+                "image_tensor": image_tensor,
+                "pair_label": record["pair_label"],
+            }
+
+        except Exception as e:
+            print(f"WARNING: Skipping bad semantic sample at idx={index}: {e}", flush=True)
+            return None

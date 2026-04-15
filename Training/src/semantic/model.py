@@ -12,6 +12,7 @@ class OpenCLIPEnhancedSemanticModel(nn.Module):
         embed_dim: int = 512,
         proj_dim: int = 512,
         dropout: float = 0.2,
+        unfreeze_last_n_blocks: int = 1,
     ):
         super().__init__()
 
@@ -21,11 +22,34 @@ class OpenCLIPEnhancedSemanticModel(nn.Module):
         )
 
         #freeze partially
-        for name, param in self.clip_model.named_parameters():
-            if "visual" in name:
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
+        # for name, param in self.clip_model.named_parameters():
+        #     if "visual" in name:
+        #         param.requires_grad = True
+        #     else:
+        #         param.requires_grad = False
+
+        #freeze everything first
+        for param in self.clip_model.parameters():
+            param.requires_grad = False
+
+        # Unfreeze only the last few visual transformer blocks
+        if hasattr(self.clip_model.visual, "transformer"):
+            blocks = self.clip_model.visual.transformer.resblocks
+            if unfreeze_last_n_blocks > 0:
+                for block in blocks[-unfreeze_last_n_blocks:]:
+                    for param in block.parameters():
+                        param.requires_grad = True
+
+        # Also unfreeze final visual norm / projection if present
+        for attr in ["ln_post", "proj"]:
+            if hasattr(self.clip_model.visual, attr):
+                module_or_param = getattr(self.clip_model.visual, attr)
+                if isinstance(module_or_param, nn.Module):
+                    for param in module_or_param.parameters():
+                        param.requires_grad = True
+                elif isinstance(module_or_param, torch.nn.Parameter):
+                    module_or_param.requires_grad = True
+
 
         self.visual = self.clip_model.visual
         self.text = self.clip_model.transformer
@@ -205,6 +229,7 @@ def build_semantic_model(config: dict) -> nn.Module:
             embed_dim=model_cfg.get("embed_dim", 512),
             proj_dim=model_cfg.get("proj_dim", 512),
             dropout=model_cfg.get("dropout", 0.2),
+            unfreeze_last_n_blocks=model_cfg.get("unfreeze_last_n_blocks", 1),
         )
 
     raise ValueError(f"Unsupported semantic model type: {model_type}")

@@ -102,6 +102,7 @@ def run_semantic_evaluation_for_split(
         config=config,
         split=split,
         checkpoint_path=checkpoint_path,
+        batch_size=config.get("evaluation", {}).get("batch_size"),
     )
 
     metrics = _compute_retrieval_metrics(
@@ -141,42 +142,51 @@ def run_semantic_evaluation_for_split(
 def _run_semantic_evaluation_impl(config: dict, config_path: str, tracking_uri: str)-> Dict:
     checkpoint_path = _resolve_checkpoint_path(config)
 
-    outputs = generate_semantic_embeddings(
+    # outputs = generate_semantic_embeddings(
+    #     config=config,
+    #     split="val",
+    #     checkpoint_path=checkpoint_path,
+    # )
+
+    # metrics = _compute_retrieval_metrics(
+    #     image_embeddings=outputs["image_embeddings"],
+    #     text_embeddings=outputs["text_embeddings"],
+    # )
+
+    # summary = {
+    #     "candidate_name": config.get("candidate_name", "unknown_candidate"),
+    #     "model_type": config["model"]["type"],
+    #     "model_version": config["model"]["version"],
+    #     "dataset_version": config["dataset"]["dataset_version"],
+    #     "checkpoint_path": checkpoint_path,
+    #     "device": outputs["device"],
+    #     "num_images": len(outputs["image_ids"]),
+    #     "num_texts": len(outputs["texts"]),
+    #     "mlflow_tracking_uri": tracking_uri,
+    #     **metrics,
+    # }
+
+    # log_config_params(config)
+
+    # mlflow.log_param("candidate_name", config.get("candidate_name", "unknown_candidate"))
+    # mlflow.log_param("model_type", config["model"]["type"])
+    # mlflow.log_param("model_version", config["model"]["version"])
+    # mlflow.log_param("dataset_version", config["dataset"]["dataset_version"])
+    # mlflow.log_param("evaluation_split", "val")
+    # mlflow.log_param("device", outputs["device"])
+    # mlflow.set_tag("checkpoint_path", checkpoint_path or "none")
+
+    # for metric_name, metric_value in metrics.items():
+    #     mlflow.log_metric(metric_name, metric_value)
+    
+    summary = run_semantic_evaluation_for_split(
         config=config,
         split="val",
         checkpoint_path=checkpoint_path,
+        log_to_mlflow=True,
     )
 
-    metrics = _compute_retrieval_metrics(
-        image_embeddings=outputs["image_embeddings"],
-        text_embeddings=outputs["text_embeddings"],
-    )
-
-    summary = {
-        "candidate_name": config.get("candidate_name", "unknown_candidate"),
-        "model_type": config["model"]["type"],
-        "model_version": config["model"]["version"],
-        "dataset_version": config["dataset"]["dataset_version"],
-        "checkpoint_path": checkpoint_path,
-        "device": outputs["device"],
-        "num_images": len(outputs["image_ids"]),
-        "num_texts": len(outputs["texts"]),
-        "mlflow_tracking_uri": tracking_uri,
-        **metrics,
-    }
-
-    log_config_params(config)
-
-    mlflow.log_param("candidate_name", config.get("candidate_name", "unknown_candidate"))
-    mlflow.log_param("model_type", config["model"]["type"])
-    mlflow.log_param("model_version", config["model"]["version"])
-    mlflow.log_param("dataset_version", config["dataset"]["dataset_version"])
-    mlflow.log_param("evaluation_split", "val")
-    mlflow.log_param("device", outputs["device"])
-    mlflow.set_tag("checkpoint_path", checkpoint_path or "none")
-
-    for metric_name, metric_value in metrics.items():
-        mlflow.log_metric(metric_name, metric_value)
+    summary["mlflow_tracking_uri"] = tracking_uri
 
     summary_file = save_summary_artifact(config, summary)
     log_artifact_if_exists(str(summary_file))
