@@ -25,6 +25,7 @@ from src.data_pipeline.manifests.build import (
     build_semantic_manifests,
     build_version_metadata,
 )
+from src.data_pipeline.manifests.drift_persist import persist_drift_metrics
 
 # Replaced by Chameleon native S3 (CHI@TACC)
 _REQUIRED_ENV_VARS = [
@@ -82,6 +83,12 @@ def main() -> None:
 
     metadata_uri = build_version_metadata(version_tag, semantic_counts, aesthetic_counts, dataset, ts=ts)
     print(f"Metadata  — {metadata_uri}")
+
+    try:
+        persist_drift_metrics(version_tag, ts)
+        print("Drift metrics persisted.")
+    except Exception as exc:
+        logging.warning("Drift persistence failed (non-fatal): %s", exc)
 
 
 if __name__ == "__main__":

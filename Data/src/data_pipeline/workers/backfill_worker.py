@@ -11,9 +11,12 @@ from datetime import datetime, timezone
 from src.data_pipeline.workers.celery_app import app
 from src.data_pipeline.db.session import SessionLocal
 from src.data_pipeline.db.models import Image, ImageMetadata, ProcessingJob
-from src.data_pipeline.workers.embedding_worker import embed_image
 
 logger = logging.getLogger(__name__)
+
+from src.data_pipeline.observability.celery_signals import register_signals
+
+register_signals(worker_name="backfill", metrics_port=8004)
 
 
 @app.task(
@@ -56,6 +59,7 @@ def reprocess_image(self, image_id: str, model_version: str, aesthetic_score: fl
 
         if reembed:
             try:
+                from src.data_pipeline.workers.embedding_worker import embed_image
                 embed_image.delay(image_id)
             except Exception as broker_exc:
                 logger.warning(

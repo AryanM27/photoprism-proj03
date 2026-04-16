@@ -3,6 +3,7 @@ version: "3.9"
 services:
   api:
     build: .
+    container_name: serving-api
     ports:
       - "8000:8000"
     environment:
@@ -16,6 +17,9 @@ services:
       - qdrant
     volumes:
       - ./checkpoints:/checkpoints   # mount Milind's checkpoint here later
+    networks:
+      - default
+      - monitoring
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -40,3 +44,7 @@ services:
 
 volumes:
   qdrant_data:
+
+networks:
+  monitoring:
+    external: true

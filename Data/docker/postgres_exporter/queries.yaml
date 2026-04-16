@@ -1,0 +1,113 @@
+# Custom queries for postgres-exporter.
+# Surfaces DB-derived metrics for the Grafana "Data Quality & Drift" dashboard.
+
+pg_image_status:
+  query: |
+    SELECT status, COALESCE(source_dataset, 'unknown') AS source_dataset, COUNT(*) AS total
+    FROM images
+    GROUP BY status, source_dataset
+  metrics:
+    - status:
+        usage: LABEL
+        description: Image pipeline status
+    - source_dataset:
+        usage: LABEL
+        description: Source dataset name
+    - total:
+        usage: GAUGE
+        description: Number of images by status and source dataset
+
+pg_image_aesthetic_score_avg:
+  query: |
+    SELECT COALESCE(im.source_dataset, 'unknown') AS source_dataset,
+           AVG(m.aesthetic_score) AS avg_aesthetic_score
+    FROM image_metadata m
+    JOIN images im ON im.image_id = m.image_id
+    WHERE m.aesthetic_score IS NOT NULL
+    GROUP BY im.source_dataset
+  metrics:
+    - source_dataset:
+        usage: LABEL
+        description: Source dataset name
+    - avg_aesthetic_score:
+        usage: GAUGE
+        description: Average aesthetic score (0-1 range) by source dataset
+
+pg_image_dim_avg:
+  query: |
+    SELECT COALESCE(im.source_dataset, 'unknown') AS source_dataset,
+           AVG(m.width) AS avg_width,
+           AVG(m.height) AS avg_height
+    FROM image_metadata m
+    JOIN images im ON im.image_id = m.image_id
+    WHERE m.width IS NOT NULL AND m.height IS NOT NULL
+    GROUP BY im.source_dataset
+  metrics:
+    - source_dataset:
+        usage: LABEL
+        description: Source dataset name
+    - avg_width:
+        usage: GAUGE
+        description: Average image width in pixels
+    - avg_height:
+        usage: GAUGE
+        description: Average image height in pixels
+
+pg_validation_failures:
+  query: |
+    SELECT COALESCE(error_message, 'unknown') AS reason, COUNT(*) AS total
+    FROM processing_jobs
+    WHERE job_type = 'validation' AND status = 'failed'
+    GROUP BY error_message
+  metrics:
+    - reason:
+        usage: LABEL
+        description: Failure reason from processing_jobs.error_message
+    - total:
+        usage: GAUGE
+        description: Number of validation failures by reason
+
+pg_manifest_drift_score:
+  query: |
+    SELECT version_tag, manifest_kind, column_name,
+           COALESCE(drift_score, 0) AS drift_score,
+           CASE WHEN drift_detected THEN 1 ELSE 0 END AS drift_detected
+    FROM drift_metrics
+    WHERE created_at = (
+      SELECT MAX(created_at) FROM drift_metrics dm2
+      WHERE dm2.version_tag = drift_metrics.version_tag
+        AND dm2.manifest_kind = drift_metrics.manifest_kind
+        AND dm2.column_name = drift_metrics.column_name
+    )
+  metrics:
+    - version_tag:
+        usage: LABEL
+        description: Dataset version tag
+    - manifest_kind:
+        usage: LABEL
+        description: Manifest type (semantic or aesthetic)
+    - column_name:
+        usage: LABEL
+        description: Column name the drift score applies to
+    - drift_score:
+        usage: GAUGE
+        description: Evidently drift score for this column (latest run)
+    - drift_detected:
+        usage: GAUGE
+        description: 1 if drift was detected, 0 otherwise (latest run)
+
+pg_manifest_row_count:
+  query: |
+    SELECT version_tag, manifest_type AS manifest_kind, SUM(record_count) AS row_count
+    FROM dataset_snapshots
+    GROUP BY version_tag, manifest_type
+  metrics:
+    - version_tag:
+        usage: LABEL
+        description: Dataset version tag
+    - manifest_kind:
+        usage: LABEL
+        description: Manifest type
+    - row_count:
+        usage: GAUGE
+        description: Total records in this manifest version

@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:15
     container_name: postgres
-    env_file: .env
+    env_file: ../Data/docker/.env
     environment:
       POSTGRES_DB: photoprism
       POSTGRES_USER: ${POSTGRES_USER}
@@ -34,8 +34,6 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Replaced by Chameleon native S3 (CHI@TACC) — no local service needed
-
   adminer:
     image: adminer:latest
     container_name: adminer
@@ -48,16 +46,14 @@ services:
 
   ingestion-worker:
     build:
-      context: ..
+      context: ../Data
       dockerfile: docker/Dockerfile.worker
     container_name: ingestion-worker
     command: >
       celery -A src.data_pipeline.workers.celery_app worker
       --loglevel=info --queues=ingestion --concurrency=2
       --hostname=ingestion@%h
-    ports:
-      - "8001:8001"
-    env_file: .env
+    env_file: ../Data/docker/.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
@@ -66,6 +62,8 @@ services:
       S3_PREFIX: data_arm9337
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "8001:8001"
     volumes:
       - /mnt/block/photoprism/originals:/data/originals
       - type: bind
@@ -82,16 +80,14 @@ services:
 
   validation-worker:
     build:
-      context: ..
+      context: ../Data
       dockerfile: docker/Dockerfile.worker
     container_name: validation-worker
     command: >
       celery -A src.data_pipeline.workers.celery_app worker
       --loglevel=info --queues=validation --concurrency=2
       --hostname=validation@%h
-    ports:
-      - "8002:8002"
-    env_file: .env
+    env_file: ../Data/docker/.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
@@ -100,6 +96,8 @@ services:
       S3_PREFIX: data_arm9337
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "8002:8002"
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,16 +107,14 @@ services:
 
   embedding-worker:
     build:
-      context: ..
+      context: ../Data
       dockerfile: docker/Dockerfile.worker
     container_name: embedding-worker
     command: >
       celery -A src.data_pipeline.workers.celery_app worker
       --loglevel=info --queues=embedding --concurrency=1
       --hostname=embedding@%h
-    ports:
-      - "8003:8003"
-    env_file: .env
+    env_file: ../Data/docker/.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
@@ -131,6 +127,8 @@ services:
       QDRANT_PORT: ${QDRANT_PORT:-6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
+    ports:
+      - "8003:8003"
     depends_on:
       postgres:
         condition: service_healthy
@@ -142,16 +140,14 @@ services:
 
   backfill-worker:
     build:
-      context: ..
+      context: ../Data
       dockerfile: docker/Dockerfile.worker
     container_name: backfill-worker
     command: >
       celery -A src.data_pipeline.workers.celery_app worker
       --loglevel=info --queues=backfill --concurrency=1
       --hostname=backfill@%h
-    ports:
-      - "8004:8004"
-    env_file: .env
+    env_file: ../Data/docker/.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
@@ -160,6 +156,8 @@ services:
       S3_PREFIX: data_arm9337
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - "8004:8004"
     depends_on:
       postgres:
         condition: service_healthy
@@ -169,7 +167,7 @@ services:
 
   features-api:
     build:
-      context: ..
+      context: ../Data
       dockerfile: docker/Dockerfile.api
     container_name: features-api
     ports:
@@ -184,50 +182,27 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: postgres-exporter
+  serving-api:
+    build:
+      context: ../Serving
+      dockerfile: Dockerfile
+    container_name: serving-api
+    ports:
+      - "8010:8000"
     environment:
-      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism?sslmode=disable
-      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/postgres_exporter/queries.yaml
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
+      MODEL_NAME: ${MODEL_NAME:-clip-ViT-B-32}
+      DEVICE: ${DEVICE:-auto}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
     volumes:
-      - ./postgres_exporter/queries.yaml:/etc/postgres_exporter/queries.yaml:ro
+      - ../Serving/checkpoints:/checkpoints
     depends_on:
+      qdrant:
+        condition: service_started
       postgres:
         condition: service_healthy
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    container_name: prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=15d"
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - /mnt/block/prometheus:/prometheus
-    networks:
-      - default
-      - monitoring
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:10.4.2
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-    volumes:
-      - /mnt/block/grafana:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      - prometheus
     restart: unless-stopped
 
   qdrant:
@@ -245,7 +220,45 @@ services:
       retries: 5
     restart: unless-stopped
 
-networks:
-  monitoring:
-    external: true
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism?sslmode=disable
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/postgres_exporter/queries.yaml
+    volumes:
+      - ../Data/docker/postgres_exporter/queries.yaml:/etc/postgres_exporter/queries.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../Data/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /mnt/block/prometheus:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - /mnt/block/grafana:/var/lib/grafana
+      - ../Data/docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../Data/docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped

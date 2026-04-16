@@ -20,6 +20,8 @@ from PIL import Image, UnidentifiedImageError
 
 logger = logging.getLogger(__name__)
 
+from src.data_pipeline.observability.metrics import VALIDATION_CHECK_TOTAL
+
 # Replaced by Chameleon native S3 (CHI@TACC)
 BUCKET_NAME    = "training-module-proj03"
 BUCKET         = os.environ.get("S3_BUCKET", BUCKET_NAME)
@@ -52,48 +54,42 @@ def _download(storage_path: str) -> bytes:
 
 
 def run_checks(storage_path: str) -> tuple[bool, str]:
-    """Run all quality checks on an image in S3 (Chameleon CHI@TACC).
-
-    Args:
-        storage_path: S3 key e.g. raw/<image_id>.jpg
-
-    Returns:
-        (True, "") on pass
-        (False, reason) on failure
-    """
     try:
         data = _download(storage_path)
     except Exception as exc:
+        VALIDATION_CHECK_TOTAL.labels(check="download", result="fail", reason="download_failed").inc()
         return False, f"download_failed: {exc}"
 
-    # File size check
     if len(data) > MAX_FILE_BYTES:
+        VALIDATION_CHECK_TOTAL.labels(check="size", result="fail", reason="file_too_large").inc()
         return False, f"file_too_large: {len(data)} bytes > {MAX_FILE_BYTES}"
 
-    # Format + integrity check via Pillow
     try:
         img = Image.open(io.BytesIO(data))
-        img.verify()  # detects truncation / corruption without full decode
+        img.verify()
     except UnidentifiedImageError:
+        VALIDATION_CHECK_TOTAL.labels(check="format", result="fail", reason="unrecognised_format").inc()
         return False, "unrecognised_format"
     except Exception as exc:
+        VALIDATION_CHECK_TOTAL.labels(check="format", result="fail", reason="corrupt_image").inc()
         return False, f"corrupt_image: {exc}"
 
-    # Re-open after verify() (verify() closes the file handle)
     try:
         img = Image.open(io.BytesIO(data))
         fmt = img.format
         width, height = img.size
     except Exception as exc:
+        VALIDATION_CHECK_TOTAL.labels(check="decode", result="fail", reason="decode_failed").inc()
         return False, f"decode_failed: {exc}"
 
-    # Supported format check
     if fmt not in SUPPORTED_FORMATS:
+        VALIDATION_CHECK_TOTAL.labels(check="format", result="fail", reason="unsupported_format").inc()
         return False, f"unsupported_format: {fmt}"
 
-    # Minimum resolution check
     if width < MIN_DIMENSION or height < MIN_DIMENSION:
+        VALIDATION_CHECK_TOTAL.labels(check="min_dim", result="fail", reason="too_small").inc()
         return False, f"too_small: {width}x{height} < {MIN_DIMENSION}px"
 
+    VALIDATION_CHECK_TOTAL.labels(check="all", result="pass", reason="").inc()
     logger.debug(f"checks passed: {storage_path} ({fmt} {width}x{height})")
     return True, ""

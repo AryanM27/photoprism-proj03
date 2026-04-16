@@ -10,6 +10,7 @@ from app.services.embedder_onnx import OnnxEmbedder
 from app.services.ranker import AestheticRanker
 from app.services.qdrant_client import ensure_collection, get_client
 from app.services import feedback
+import app.metrics  # noqa: F401  — registers custom Prometheus metrics at import time
 
 
 @asynccontextmanager

@@ -22,3 +22,24 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["qdrant:6333"]
+
+  - job_name: ingestion-worker
+    static_configs:
+      - targets: ["ingestion-worker:8001"]
+
+  - job_name: validation-worker
+    static_configs:
+      - targets: ["validation-worker:8002"]
+
+  - job_name: embedding-worker
+    static_configs:
+      - targets: ["embedding-worker:8003"]
+
+  - job_name: backfill-worker
+    static_configs:
+      - targets: ["backfill-worker:8004"]
+
+  - job_name: serving-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["serving-api:8000"]

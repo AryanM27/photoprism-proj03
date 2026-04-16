@@ -77,3 +77,16 @@ class DatasetSnapshot(Base):
     split_strategy = Column(String)  # e.g. hash_hex_62_19_19
     manifest_type  = Column(String)  # "semantic" or "aesthetic"
     created_at     = Column(DateTime, default=datetime.utcnow)
+
+
+class DriftMetric(Base):
+    __tablename__ = "drift_metrics"
+    id                    = Column(Integer, primary_key=True, autoincrement=True)
+    version_tag           = Column(Text, nullable=False)
+    reference_version_tag = Column(Text, nullable=True)
+    manifest_kind         = Column(Text, nullable=False)   # 'semantic' | 'aesthetic'
+    column_name           = Column(Text, nullable=False)
+    drift_score           = Column(Float, nullable=True)
+    drift_detected        = Column(Boolean, nullable=True)
+    stattest_name         = Column(Text, nullable=True)
+    created_at            = Column(DateTime, default=datetime.utcnow)
