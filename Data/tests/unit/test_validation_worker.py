@@ -1,7 +1,7 @@
 from unittest.mock import patch, MagicMock
 
 
-@patch("src.data_pipeline.workers.validation_worker.embed_image")
+@patch("src.data_pipeline.workers.embedding_worker.embed_image")
 @patch("src.data_pipeline.workers.validation_worker.SessionLocal")
 def test_validation_worker_dispatches_embedding_on_success(mock_session_cls, mock_embed):
     """After a valid image passes all checks, embed_image.delay is called with the image_id."""

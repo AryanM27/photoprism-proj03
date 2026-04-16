@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from celery.exceptions import MaxRetriesExceededError
 
 
-@patch("src.data_pipeline.workers.backfill_worker.embed_image")
+@patch("src.data_pipeline.workers.embedding_worker.embed_image")
 @patch("src.data_pipeline.workers.backfill_worker.SessionLocal")
 def test_reprocess_image_dispatches_embed_task(mock_session_cls, mock_embed):
     fake_image = MagicMock()
