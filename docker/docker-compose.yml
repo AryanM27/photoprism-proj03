@@ -244,6 +244,7 @@ services:
       - "9090:9090"
     volumes:
       - ../Data/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../Data/docker/alerts:/etc/prometheus/alerts:ro
       - /mnt/block/prometheus:/prometheus
     restart: unless-stopped
 

@@ -1,0 +1,52 @@
+groups:
+  - name: serving_rollback_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"4xx|5xx"}[5m]))
+          /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          action: rollback
+        annotations:
+          summary: "Error rate > 5% — trigger rollback"
+          description: "Error rate is {{ $value | humanizePercentage }} over last 5 minutes."
+
+      - alert: HighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{handler="/search"}[5m])) by (le)
+          ) > 5.0
+        for: 2m
+        labels:
+          severity: critical
+          action: rollback
+        annotations:
+          summary: "p95 latency > 5s on /search — trigger rollback"
+          description: "p95 latency is {{ $value }}s over last 5 minutes."
+
+  - name: serving_retrain_alerts
+    rules:
+      - alert: SearchVolumeDropped
+        expr: |
+          rate(http_requests_total{handler="/search"}[10m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+          action: retrain
+        annotations:
+          summary: "Zero search traffic for 10m — possible model failure or drift"
+          description: "No /search requests recorded in the last 10 minutes. Check model health and Evidently drift reports."
+
+      - alert: SearchEndpointDown
+        expr: |
+          absent(http_requests_total{handler="/search"})
+        for: 1m
+        labels:
+          severity: critical
+          action: rollback
+        annotations:
+          summary: "/search endpoint not responding"
+          description: "No requests recorded on /search for over 1 minute."
