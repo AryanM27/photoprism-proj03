@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.routes import health, index, search
+from app.services.checkpoint_resolver import resolve_checkpoint
 from app.services.embedder import Embedder
 from app.services.embedder_onnx import OnnxEmbedder
 from app.services.ranker import AestheticRanker
@@ -19,6 +20,9 @@ async def lifespan(app: FastAPI):
     use_onnx = os.getenv("USE_ONNX", "false").lower() == "true"
     model_name = os.getenv("MODEL_NAME", "clip-ViT-B-32")
 
+    semantic_ckpt = resolve_checkpoint(os.getenv("CHECKPOINT_PATH"))
+    aesthetic_ckpt = resolve_checkpoint(os.getenv("AESTHETIC_CHECKPOINT_PATH"))
+
     if use_onnx:
         app.state.embedder = OnnxEmbedder(
             model_name=model_name,
@@ -29,12 +33,12 @@ async def lifespan(app: FastAPI):
         app.state.embedder = Embedder(
             model_name=model_name,
             device_str=os.getenv("DEVICE", "auto"),
-            checkpoint_path=os.getenv("CHECKPOINT_PATH", None),
+            checkpoint_path=semantic_ckpt,
         )
 
     app.state.ranker = AestheticRanker(
         device_str=os.getenv("DEVICE", "auto"),
-        checkpoint_path=os.getenv("AESTHETIC_CHECKPOINT_PATH", None),
+        checkpoint_path=aesthetic_ckpt,
         model_type=os.getenv("AESTHETIC_MODEL_TYPE", "resnet18_linear"),
     )
     ensure_collection(get_client())

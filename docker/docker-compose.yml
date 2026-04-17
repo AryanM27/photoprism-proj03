@@ -196,6 +196,13 @@ services:
       MODEL_NAME: ${MODEL_NAME:-clip-ViT-B-32}
       DEVICE: ${DEVICE:-auto}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
+      MODEL_VERSION: ${MODEL_VERSION:-clip-ViT-B-32-v1}
+      AESTHETIC_MODEL_TYPE: ${AESTHETIC_MODEL_TYPE:-mobilenet_v3_large_fusion}
+      CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
+      AESTHETIC_CHECKPOINT_PATH: ${AESTHETIC_CHECKPOINT_PATH:-}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-https://chi.tacc.chameleoncloud.org:7480}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
       - ../Serving/checkpoints:/checkpoints
     depends_on:
