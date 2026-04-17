@@ -4,6 +4,7 @@ sentence-transformers
 torch
 torchvision
 pillow
+numpy
 qdrant-client
 prometheus-fastapi-instrumentator
 python-multipart
