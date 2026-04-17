@@ -10,5 +10,6 @@ python-multipart
 pydantic
 onnxruntime
 onnxscript
+open-clip-torch>=2.24.0
 sqlalchemy
 psycopg2-binary
