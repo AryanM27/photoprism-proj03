@@ -37,6 +37,9 @@ Data/.dvc/cache/
 # Docker secrets
 Data/docker/.env
 
+# Local photoprism source clone (populated by docker/scripts/clone-photoprism.sh)
+docker/photoprism-src/
+
 # Secrets
 Data/infra/secrets/
 !Data/infra/secrets/.gitkeep

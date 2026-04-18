@@ -275,7 +275,8 @@ services:
     restart: unless-stopped
 
   photoprism:
-    image: photoprism/photoprism:latest
+    build:
+      context: photoprism-src   # populated by: bash docker/scripts/clone-photoprism.sh
     container_name: photoprism
     env_file: ../Data/docker/.env
     ports:
