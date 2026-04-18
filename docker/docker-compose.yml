@@ -127,6 +127,7 @@ services:
       QDRANT_PORT: ${QDRANT_PORT:-6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
+      CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
     ports:
       - "8003:8003"
     depends_on:
@@ -156,6 +157,7 @@ services:
       S3_PREFIX: data_arm9337
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
     ports:
       - "8004:8004"
     depends_on:

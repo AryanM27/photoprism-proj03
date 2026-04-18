@@ -8,6 +8,7 @@ For each event:
   4. Upsert vector + payload to Qdrant
   5. Update images.embedding_status, embedded_at, model_version in Postgres
 """
+import hashlib
 import logging
 import os
 import tempfile
@@ -28,11 +29,53 @@ _encoder: CLIPEncoder | None = None
 _store: QdrantStore | None = None
 
 
+def _resolve_checkpoint() -> str | None:
+    """Download checkpoint from S3 if needed, return local path or None."""
+    path = os.environ.get("CHECKPOINT_PATH", "").strip()
+    if not path:
+        return None
+    if path.startswith("/"):
+        if os.path.isfile(path):
+            return path
+        logger.warning(
+            "CHECKPOINT_PATH=%s is an absolute path but the file does not exist — "
+            "check your volume mount. Using base weights.", path
+        )
+        return None
+    # S3 bucket/key format — download once to /tmp, keyed by S3 path to avoid collisions
+    key_hash = hashlib.sha256(path.encode()).hexdigest()[:12]
+    local_dest = f"/tmp/clip_checkpoint_{key_hash}.pt"
+
+    if os.path.isfile(local_dest):
+        return local_dest
+    try:
+        parts = path.split("/", 1)
+        if len(parts) != 2:
+            logger.warning("CHECKPOINT_PATH '%s' is not a valid bucket/key path", path)
+            return None
+        bucket, key = parts
+        logger.info("Downloading embedding checkpoint s3://%s/%s", bucket, key)
+        get_s3_client().download_file(bucket, key, local_dest)
+        logger.info("Embedding checkpoint downloaded to %s", local_dest)
+        return local_dest
+    except Exception as exc:
+        logger.warning("Failed to download embedding checkpoint: %s — task will be rejected if CHECKPOINT_PATH is set", exc)
+        return None
+
+
 def _get_encoder() -> CLIPEncoder:
     global _encoder
     if _encoder is None:
         model = os.environ.get("EMBEDDING_MODEL", "clip-ViT-B-32")
-        _encoder = CLIPEncoder(model_name=model)
+        ckpt_path = _resolve_checkpoint()
+        if ckpt_path is None and os.environ.get("CHECKPOINT_PATH", "").strip():
+            # CHECKPOINT_PATH was set but could not be resolved — refuse to cache
+            # a base-weight encoder so the next task attempt retries resolution.
+            raise RuntimeError(
+                "CHECKPOINT_PATH is set but checkpoint could not be resolved. "
+                "Check S3 credentials and path. Refusing to embed with base weights."
+            )
+        _encoder = CLIPEncoder(model_name=model, checkpoint_path=ckpt_path)
     return _encoder
 
 
@@ -110,7 +153,11 @@ def embed_image(self, image_id: str) -> None:
             session.commit()
             raise self.retry(exc=encode_error)
 
-        model_ver = os.environ.get("EMBEDDING_MODEL", "clip-ViT-B-32")
+        base_model = os.environ.get("EMBEDDING_MODEL", "clip-ViT-B-32")
+        ckpt_path_env = os.environ.get("CHECKPOINT_PATH", "").strip()
+        model_ver = (
+            f"{base_model}+{os.path.basename(ckpt_path_env)}" if ckpt_path_env else base_model
+        )
         payload = {
             "image_id": image_id,
             "storage_path": image.storage_path,
@@ -118,6 +165,7 @@ def embed_image(self, image_id: str) -> None:
             "timestamp": timestamp,
             "aesthetic_score": float(aesthetic_score) if aesthetic_score else None,
             "model_version": model_ver,
+            "checkpoint_path": ckpt_path_env or None,
         }
         _get_store().upsert(image_id, vector, payload)
 

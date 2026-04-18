@@ -1,4 +1,5 @@
 import logging
+import os
 
 import numpy as np
 import open_clip
@@ -11,13 +12,34 @@ logger = logging.getLogger(__name__)
 class CLIPEncoder:
     VECTOR_DIM = 512
 
-    def __init__(self, model_name: str = "clip-ViT-B-32"):
+    def __init__(self, model_name: str = "clip-ViT-B-32", checkpoint_path: str | None = None):
         self.model_name = model_name
         internal_name = model_name.removeprefix("clip-")
         self._model, _, self._transform = open_clip.create_model_and_transforms(
             internal_name, pretrained="openai"
         )
         self._tokenizer = open_clip.get_tokenizer(internal_name)
+
+        if checkpoint_path and os.path.isfile(checkpoint_path):
+            # Workers run CPU-only; map_location="cpu" is intentional
+            ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+            state = ckpt.get("model_state_dict", ckpt)
+            incompatible = self._model.load_state_dict(state, strict=False)
+            if set(incompatible.missing_keys) == set(self._model.state_dict().keys()):
+                raise RuntimeError(
+                    f"Checkpoint {checkpoint_path!r} loaded but zero parameters matched — "
+                    "wrong checkpoint file or architecture mismatch."
+                )
+            if incompatible.missing_keys:
+                logger.info(
+                    "Checkpoint loaded with %d missing keys (strict=False): %s",
+                    len(incompatible.missing_keys), checkpoint_path,
+                )
+            else:
+                logger.info("Loaded checkpoint: %s", checkpoint_path)
+        elif checkpoint_path:
+            logger.warning("CHECKPOINT_PATH=%s not found — using base pretrained weights", checkpoint_path)
+
         self._model.eval()
 
     def encode_image(self, image_path: str) -> np.ndarray:
