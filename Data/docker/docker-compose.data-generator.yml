@@ -1,0 +1,31 @@
+# Run with:
+#   docker compose -f docker/docker-compose.data-generator.yml up -d
+#
+# Prerequisites:
+#   - Photoprism running (default at http://photoprism:2342 on the same Docker network)
+#   - S3 credentials in docker/.env
+
+services:
+  data-generator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.data-generator
+    container_name: data-generator
+    env_file: .env
+    environment:
+      PHOTOPRISM_URL: ${PHOTOPRISM_URL:-http://photoprism:2342}
+      PHOTOPRISM_USERNAME: ${PHOTOPRISM_USERNAME:-admin}
+      PHOTOPRISM_PASSWORD: ${PHOTOPRISM_PASSWORD}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-https://chi.tacc.chameleoncloud.org:7480}
+      S3_BUCKET: ${S3_BUCKET:-training-module-proj03}
+      S3_PREFIX: ${S3_PREFIX}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      MEAN_THINK_SECONDS: ${MEAN_THINK_SECONDS:-2.0}
+    restart: unless-stopped
+    networks:
+      - photoprism_default
+
+networks:
+  photoprism_default:
+    external: true

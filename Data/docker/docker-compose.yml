@@ -131,6 +131,7 @@ services:
       QDRANT_PORT: ${QDRANT_PORT:-6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
+      CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -160,6 +161,7 @@ services:
       S3_PREFIX: data_arm9337
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -231,7 +233,7 @@ services:
     restart: unless-stopped
 
   qdrant:
-    image: qdrant/qdrant:v1.9.2
+    image: qdrant/qdrant:v1.13.6
     container_name: qdrant
     ports:
       - "6333:6333"

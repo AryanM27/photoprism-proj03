@@ -273,3 +273,49 @@ services:
     depends_on:
       - prometheus
     restart: unless-stopped
+
+  photoprism:
+    build:
+      context: https://github.com/AryanM27/photoprism.git
+    container_name: photoprism
+    ports:
+      - "2342:2342"
+    environment:
+      PHOTOPRISM_AUTH_MODE: "password"
+      PHOTOPRISM_ADMIN_USER: "admin"
+      PHOTOPRISM_ADMIN_PASSWORD: ${PHOTOPRISM_PASSWORD}
+      PHOTOPRISM_DATABASE_DRIVER: "postgres"
+      PHOTOPRISM_DATABASE_DSN: "host=postgres port=5432 dbname=photoprism user=${POSTGRES_USER} password=${POSTGRES_PASSWORD} sslmode=disable TimeZone=UTC"
+      PHOTOPRISM_ORIGINALS_PATH: /photoprism/originals
+      PHOTOPRISM_STORAGE_PATH: /photoprism/storage
+      PHOTOPRISM_SITE_URL: "http://localhost:2342/"
+      PHOTOPRISM_HTTP_HOST: "0.0.0.0"
+      PHOTOPRISM_HTTP_PORT: 2342
+    volumes:
+      - /mnt/block/photoprism/originals:/photoprism/originals
+      - /mnt/block/photoprism/storage:/photoprism/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  data-generator:
+    build:
+      context: ../Data
+      dockerfile: docker/Dockerfile.data-generator
+    container_name: data-generator
+    env_file: ../Data/docker/.env
+    environment:
+      PHOTOPRISM_URL: ${PHOTOPRISM_URL:-http://photoprism:2342}
+      PHOTOPRISM_USERNAME: ${PHOTOPRISM_USERNAME:-admin}
+      PHOTOPRISM_PASSWORD: ${PHOTOPRISM_PASSWORD}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-https://chi.tacc.chameleoncloud.org:7480}
+      S3_BUCKET: ${S3_BUCKET:-training-module-proj03}
+      S3_PREFIX: ${S3_PREFIX}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      MEAN_THINK_SECONDS: ${MEAN_THINK_SECONDS:-2.0}
+    depends_on:
+      photoprism:
+        condition: service_started
+    restart: unless-stopped
