@@ -275,8 +275,7 @@ services:
     restart: unless-stopped
 
   photoprism:
-    build:
-      context: https://github.com/AryanM27/photoprism.git
+    image: photoprism/photoprism:latest
     container_name: photoprism
     ports:
       - "2342:2342"

@@ -1,0 +1,15 @@
+# Parameterised so you can swap in a locally-built image without editing
+# this file.  Set IMAGE via --build-arg or the PHOTOPRISM_IMAGE env var.
+#
+# Default: official pre-built image (works in network-restricted environments
+# like Chameleon CHI@TACC that can't reach GitHub during docker build).
+#
+# Workflow for custom fork changes:
+#   1. On your Mac, clone and modify AryanM27/photoprism
+#   2. Build:  docker build -t <dockerhub-user>/photoprism:latest .
+#   3. Push:   docker push <dockerhub-user>/photoprism:latest
+#   4. On VM:  set PHOTOPRISM_IMAGE=<dockerhub-user>/photoprism:latest in .env
+#              then: docker compose up -d --pull always photoprism
+
+ARG IMAGE=photoprism/photoprism:latest
+FROM ${IMAGE}
