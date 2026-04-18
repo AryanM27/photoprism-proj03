@@ -113,6 +113,7 @@ def embed_image(self, image_id: str) -> None:
         model_ver = os.environ.get("EMBEDDING_MODEL", "clip-ViT-B-32")
         payload = {
             "image_id": image_id,
+            "storage_path": image.storage_path,
             "tags": [t.strip() for t in tags if t.strip()],
             "timestamp": timestamp,
             "aesthetic_score": float(aesthetic_score) if aesthetic_score else None,

@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 
 from fastapi import APIRouter, Request
@@ -6,6 +8,7 @@ from pydantic import BaseModel
 from app.services import qdrant_client as qdrant
 from app.services.qdrant_client import get_client
 from app.services import feedback
+from app.services.image_fetcher import fetch_image_bytes, resolve_storage_path
 from app.metrics import (
     INFERENCE_SEARCH_TOTAL,
     INFERENCE_EMPTY_RESULTS_TOTAL,
@@ -14,6 +17,8 @@ from app.metrics import (
     INFERENCE_TOP_K_SCORE,
     INFERENCE_SCORE_SPREAD,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -60,13 +65,12 @@ def search(req: TextSearchRequest, request: Request):
         if req.rerank and results:
             image_bytes_map = {}
             for item in results:
-                path = item["payload"].get("filepath") or item["payload"].get("filename")
-                if path:
+                sp = resolve_storage_path(item["image_id"], item["payload"])
+                if sp:
                     try:
-                        with open(path, "rb") as f:
-                            image_bytes_map[item["image_id"]] = f.read()
-                    except (FileNotFoundError, OSError):
-                        pass
+                        image_bytes_map[item["image_id"]] = fetch_image_bytes(sp)
+                    except Exception as exc:
+                        logger.warning("Could not fetch image %s from S3: %s", item["image_id"], exc)
             results = ranker.rerank(results, image_bytes_map)
 
         # Record rerank-stage scores and spread
