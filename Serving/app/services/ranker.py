@@ -124,9 +124,9 @@ class MobileNetV3LargeFusionAestheticRegressor(nn.Module):
         return self.out_head(feat).squeeze(-1)
 
 
-def _build_model(model_type: str) -> nn.Module:
+def _build_model(model_type: str, hidden_dim: int = 512) -> nn.Module:
     if model_type == "mobilenet_v3_large_fusion":
-        return MobileNetV3LargeFusionAestheticRegressor()
+        return MobileNetV3LargeFusionAestheticRegressor(hidden_dim=hidden_dim)
     return ResNet18LinearAestheticRegressor()   # default
 
 
@@ -145,15 +145,28 @@ _TRANSFORM = transforms.Compose([
 class AestheticRanker:
     def __init__(self, device_str: str = "auto", checkpoint_path: str = None,
                  model_type: str = "resnet18_linear"):
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-            if device_str == "auto" else device_str
-        )
-        self.model = _build_model(model_type).to(self.device).eval()
+        if device_str == "auto":
+            _device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            _device = device_str
+        self.device = torch.device(_device)
 
+        # Infer hidden_dim from checkpoint so the model architecture matches
+        # exactly what was used during training (avoids shape-mismatch errors).
+        hidden_dim = 512  # default; overridden below if checkpoint is present
+        ckpt = None
         if checkpoint_path and os.path.isfile(checkpoint_path):
             ckpt = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
-            self.model.load_state_dict(ckpt["model_state_dict"])
+            state = ckpt.get("model_state_dict", ckpt)
+            # proj.0 is nn.Linear(fused_dim → hidden_dim); shape[0] is hidden_dim
+            if "proj.0.weight" in state:
+                hidden_dim = state["proj.0.weight"].shape[0]
+
+        self.model = _build_model(model_type, hidden_dim=hidden_dim).to(self.device).eval()
+
+        if ckpt is not None:
+            state = ckpt.get("model_state_dict", ckpt)
+            self.model.load_state_dict(state)
 
     @torch.no_grad()
     def score_image_bytes(self, image_bytes: bytes) -> float:
