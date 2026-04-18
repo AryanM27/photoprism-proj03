@@ -38,11 +38,12 @@ def upsert_photo(client: QdrantClient, image_id: str, embedding: list[float], pa
 
 
 def search_photos(client: QdrantClient, query_embedding: list[float], top_k: int = 10) -> list[dict]:
-    results = client.query_points(
+    results = client.search(
         collection_name=COLLECTION_NAME,
-        query=query_embedding,
+        query_vector=query_embedding,
         limit=top_k,
-    ).points
+        with_payload=True,
+    )
     return [
         {"image_id": hit.payload.get("image_id"), "score": hit.score, "payload": hit.payload}
         for hit in results
