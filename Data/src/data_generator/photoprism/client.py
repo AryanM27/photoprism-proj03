@@ -12,6 +12,7 @@ class PhotoprismClient:
         self._username = username
         self._password = password
         self._session_id: str | None = None
+        self._user_uid: str | None = None
         self._session = requests.Session()
         self._session.headers.update({"Accept": "application/json"})
 
@@ -25,8 +26,9 @@ class PhotoprismClient:
         resp.raise_for_status()
         data = resp.json()
         self._session_id = data["id"]
+        self._user_uid = data.get("user", {}).get("UID", "")
         self._session.headers.update({"X-Session-ID": self._session_id})
-        logger.info("Logged in as %s", self._username)
+        logger.info("Logged in as %s (uid=%s)", self._username, self._user_uid)
 
     def logout(self) -> None:
         if self._session_id is None:
@@ -53,13 +55,14 @@ class PhotoprismClient:
 
     def upload_photo(self, image_bytes: bytes, filename: str) -> str | None:
         upload_token = uuid4().hex
-        upload_url = f"{self._base_url}/api/v1/photos/upload/{upload_token}"
+        # Newer photoprism API (v2+): /api/v1/users/{uid}/upload/{token}
+        upload_url = f"{self._base_url}/api/v1/users/{self._user_uid}/upload/{upload_token}"
         files = {"files": (filename, image_bytes, "image/jpeg")}
-        resp = self._session.post(upload_url, files=files, timeout=30)
+        resp = self._session.post(upload_url, files=files, timeout=60)
         resp.raise_for_status()
 
-        import_url = f"{self._base_url}/api/v1/import/upload/{upload_token}"
-        resp2 = self._session.post(import_url, json={"move": False}, timeout=30)
+        import_url = f"{self._base_url}/api/v1/users/{self._user_uid}/upload/{upload_token}/import"
+        resp2 = self._session.post(import_url, json={"move": False}, timeout=60)
         resp2.raise_for_status()
 
         return upload_token
