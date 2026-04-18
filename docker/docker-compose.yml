@@ -275,8 +275,10 @@ services:
     restart: unless-stopped
 
   photoprism:
-    image: photoprism/photoprism:latest
+    build:
+      context: https://github.com/AryanM27/photoprism.git
     container_name: photoprism
+    env_file: ../Data/docker/.env
     ports:
       - "2342:2342"
     environment:
