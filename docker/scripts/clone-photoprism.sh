@@ -20,14 +20,7 @@ else
   git clone "$REPO" "$DEST"
 fi
 
-# Patch: replace yt-dlp download script with a no-op.
-# yt-dlp is only used for video indexing; photos work without it.
-SCRIPT="$DEST/scripts/dist/install-yt-dlp.sh"
-if [ -f "$SCRIPT" ]; then
-  printf '#!/bin/bash\necho "yt-dlp install skipped (GitHub releases unreachable on this host)"\n' \
-    > "$SCRIPT"
-  chmod +x "$SCRIPT"
-  echo "Patched $SCRIPT"
-fi
+# No patching needed — the production Dockerfile (docker/photoprism/noble/Dockerfile)
+# does not install yt-dlp, so the build works in network-restricted environments.
 
 echo "Done — run: docker compose -f docker/docker-compose.yml build photoprism"
