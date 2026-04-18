@@ -61,7 +61,7 @@ class PhotoprismClient:
         resp = self._session.post(upload_url, files=files, timeout=60)
         resp.raise_for_status()
 
-        import_url = f"{self._base_url}/api/v1/users/{self._user_uid}/upload/{upload_token}/import"
+        import_url = f"{self._base_url}/api/v1/import/upload/{upload_token}"
         resp2 = self._session.post(import_url, json={"move": False}, timeout=60)
         resp2.raise_for_status()
 
