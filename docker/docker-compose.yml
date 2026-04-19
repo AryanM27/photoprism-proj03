@@ -291,6 +291,9 @@ services:
       PHOTOPRISM_SITE_URL: "http://localhost:2342/"
       PHOTOPRISM_HTTP_HOST: "0.0.0.0"
       PHOTOPRISM_HTTP_PORT: 2342
+      PHOTOPRISM_SEMANTIC_ENABLED: ${PHOTOPRISM_SEMANTIC_ENABLED:-false}
+      PHOTOPRISM_SEMANTIC_URI: ${PHOTOPRISM_SEMANTIC_URI:-http://serving-api:8000}
+      PHOTOPRISM_SEMANTIC_RERANK: ${PHOTOPRISM_SEMANTIC_RERANK:-false}
     volumes:
       - /mnt/block/photoprism/originals:/photoprism/originals
       - /mnt/block/photoprism/storage:/photoprism/storage
