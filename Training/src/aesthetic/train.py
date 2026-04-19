@@ -21,7 +21,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import argparse
-from pathlib import Path
 from src.storage.artifact_io import save_history_artifact, save_summary_artifact
 
 import mlflow
@@ -48,6 +47,11 @@ from src.mlflow.logger import (
     start_run,
 )
 
+from src.common.config import load_config, write_temp_config
+
+def train_aesthetic_from_config(config: dict) -> dict:
+    temp_config_path = write_temp_config(config, prefix="aesthetic_api_")
+    return train_aesthetic_baseline(temp_config_path)
 
 def get_device(device_str: str) -> torch.device:
     if device_str == "auto":

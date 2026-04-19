@@ -5,6 +5,9 @@ pillow
 # torchvision
 open_clip_torch
 mlflow
+fastapi
+uvicorn
+pydantic
 
 psycopg2-binary
 python-swiftclient

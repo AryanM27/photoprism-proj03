@@ -45,6 +45,11 @@ from src.mlflow.logger import (
 )
 from src.semantic.model import build_semantic_model, build_text_features
 
+from src.common.config import load_config, write_temp_config
+
+def train_semantic_from_config(config: dict) -> dict:
+    temp_config_path = write_temp_config(config, prefix="semantic_api_")
+    return train_semantic_baseline(temp_config_path)
 
 def get_device(device_str: str) -> torch.device:
     if device_str == "auto":

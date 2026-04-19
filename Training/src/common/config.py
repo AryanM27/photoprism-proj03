@@ -4,6 +4,9 @@ import yaml
 
 from src.common.paths import resolve_training_path
 
+from copy import deepcopy
+from typing import Any, Dict
+import tempfile
 
 PATH_KEYS = {
     ("dataset", "manifest_path"),
@@ -13,6 +16,25 @@ PATH_KEYS = {
 
 def _is_remote_uri(value: str) -> bool:
     return isinstance(value, str) and "://" in value
+
+
+def deep_update(base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    result = deepcopy(base)
+    for key, value in updates.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = deep_update(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def write_temp_config(config: Dict[str, Any], prefix: str = "train_api_") -> str:
+    temp_dir = Path(tempfile.gettempdir()) / "training_api_configs"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    fd, temp_path = tempfile.mkstemp(prefix=prefix, suffix=".yaml", dir=str(temp_dir))
+    Path(temp_path).write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    return temp_path
 
 
 def _apply_env_overrides(config: dict) -> dict:
