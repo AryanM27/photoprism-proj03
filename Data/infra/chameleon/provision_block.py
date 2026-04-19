@@ -34,3 +34,28 @@ else:
 
 print(f"\nVolume ID: {volume.id}")
 print("Run provision_vm.py next — it will attach this volume to the server.")
+
+# ---------------------------------------------------------------------------
+# Extend volume (optional — skip if no resize is needed)
+# ---------------------------------------------------------------------------
+import time as _time
+
+NEW_SIZE_GIB = 40  # set to desired GiB — must be larger than current size
+
+volume = cinder_client.volumes.get(volume.id)  # refresh to get latest size
+if NEW_SIZE_GIB > volume.size:
+    print(f"Extending volume from {volume.size} GiB to {NEW_SIZE_GIB} GiB...")
+    os_conn = chi.clients.connection()
+    os_conn.block_storage.extend_volume(volume.id, NEW_SIZE_GIB)
+    while True:
+        vol = os_conn.block_storage.get_volume(volume.id)
+        if vol.status == "available":
+            break
+        elif vol.status == "error":
+            raise RuntimeError("Volume extend failed — volume entered 'error' state.")
+        _time.sleep(3)
+    print(f"Volume extended to {NEW_SIZE_GIB} GiB.")
+    # NOTE: if the volume is currently attached to a VM, you must also run
+    #       `sudo resize2fs /dev/vdb1` inside the VM after extending.
+else:
+    print(f"Volume already at {volume.size} GiB — no resize needed.")
