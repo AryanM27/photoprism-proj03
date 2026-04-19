@@ -275,7 +275,7 @@ services:
     restart: unless-stopped
 
   photoprism:
-    image: photoprism/photoprism:latest
+    image: ${PHOTOPRISM_IMAGE:-photoprism-semantic:latest}
     container_name: photoprism
     env_file: ../Data/docker/.env
     ports:
