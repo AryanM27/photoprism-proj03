@@ -213,6 +213,51 @@ jobs:
             docker compose -f docker/docker-compose.yml --env-file Data/docker/.env restart embedding-worker
             echo "Redeployment complete"
 
+      - name: Trigger backfill for updated model
+        if: steps.promote.outcome == 'success'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CHAMELEON_VM_IP }}
+          username: cc
+          key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
+          script: |
+            cd /home/cc/photoprism-proj03
+            export $(grep -v '^#' Data/docker/.env | xargs)
+            export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/photoprism"
+            source /mnt/block/.venv/bin/activate
+            cd Data
+
+            SEMANTIC_PROMOTED="${{ steps.promote_semantic.outcome }}"
+            AESTHETIC_PROMOTED="${{ steps.promote_aesthetic.outcome }}"
+
+            if [ "$SEMANTIC_PROMOTED" = "success" ]; then
+              SEMANTIC_VERSION=$(python3 -c "import yaml; d=yaml.safe_load(open('../Serving/config/current_production.yaml')); print(d.get('semantic',{}).get('model_version','clip-ViT-B-32'))")
+              echo "Triggering full re-embedding backfill for semantic model: $SEMANTIC_VERSION"
+              python3 -c "
+            from src.data_pipeline.db.session import SessionLocal
+            from src.data_pipeline.backfill.pipeline import trigger_backfill
+            db = SessionLocal()
+            jobs = trigger_backfill(db, model_version='${SEMANTIC_VERSION}', reembed=True)
+            db.close()
+            print(f'Semantic backfill queued for {len(jobs)} images')
+            "
+            fi
+
+            if [ "$AESTHETIC_PROMOTED" = "success" ]; then
+              AESTHETIC_VERSION=$(python3 -c "import yaml; d=yaml.safe_load(open('../Serving/config/current_production.yaml')); print(d.get('aesthetic',{}).get('model_version','mobilenet_v3_large_fusion'))")
+              echo "Triggering aesthetic-only backfill for all images: $AESTHETIC_VERSION"
+              docker compose -f ../docker/docker-compose.yml --env-file ../Data/docker/.env restart backfill-worker
+              python3 -c "
+            from src.data_pipeline.db.session import SessionLocal
+            from src.data_pipeline.backfill.pipeline import trigger_backfill
+            db = SessionLocal()
+            jobs = trigger_backfill(db, model_version='${AESTHETIC_VERSION}', reembed=False)
+            db.close()
+            print(f'Aesthetic backfill queued for {len(jobs)} images')
+            "
+            fi
+
       - name: Monitor after deploy (canary window)
         id: canary
         if: steps.promote.outcome == 'success'

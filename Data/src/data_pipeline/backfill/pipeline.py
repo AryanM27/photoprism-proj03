@@ -14,18 +14,26 @@ from src.data_pipeline.db.models import Image, ProcessingJob
 logger = logging.getLogger(__name__)
 
 
-def trigger_backfill(db_session, model_version: str, dry_run: bool = False) -> list[dict]:
-    """Query all validated images and queue them for re-embedding.
+def trigger_backfill(
+    db_session,
+    model_version: str,
+    dry_run: bool = False,
+    reembed: bool = True,
+    source_dataset: str | None = None,
+) -> list[dict]:
+    """Query validated images and queue them for re-embedding and/or aesthetic re-scoring.
 
     Args:
-        db_session:    Active SQLAlchemy session.
-        model_version: Embedding model version to re-embed with (e.g. "clip-ViT-B-32").
-        dry_run:       If True, return jobs without writing to DB or publishing to queue.
-
-    Returns:
-        List of job dicts with keys: job_id, image_id, job_type, model_version.
+        db_session:     Active SQLAlchemy session.
+        model_version:  Model version label to attribute the job to.
+        dry_run:        If True, return jobs without writing to DB or publishing to queue.
+        reembed:        If True, re-generate CLIP embeddings. Set False for aesthetic-only runs.
+        source_dataset: If set, only backfill images from this dataset (e.g. "user").
     """
-    images = db_session.query(Image).filter_by(status="validated").all()
+    query = db_session.query(Image).filter_by(status="validated")
+    if source_dataset is not None:
+        query = query.filter_by(source_dataset=source_dataset)
+    images = query.all()
     jobs = []
 
     for img in images:
@@ -48,11 +56,10 @@ def trigger_backfill(db_session, model_version: str, dry_run: bool = False) -> l
 
     if not dry_run:
         db_session.commit()
-        # Deferred import to avoid circular imports at module level.
         from src.data_pipeline.workers.backfill_worker import reprocess_image
         try:
             for job in jobs:
-                reprocess_image.delay(job["image_id"], model_version)
+                reprocess_image.delay(job["image_id"], model_version, reembed=reembed)
         except Exception as pub_exc:
             logger.warning(
                 "Jobs committed with status='queued' but dispatching failed (%d jobs, model=%s): %s",
@@ -61,6 +68,9 @@ def trigger_backfill(db_session, model_version: str, dry_run: bool = False) -> l
                 pub_exc,
             )
             raise
-        logger.info("Queued %d images for backfill (model=%s)", len(jobs), model_version)
+        logger.info(
+            "Queued %d images for backfill (model=%s, reembed=%s, source_dataset=%s)",
+            len(jobs), model_version, reembed, source_dataset,
+        )
 
     return jobs
