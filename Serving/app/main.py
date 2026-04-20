@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.routes import health, image, index, search, webhook
+from app.routes import health, image, index, search, webhook, score
 from app.routes import feedback as feedback_routes
 from app.services.checkpoint_resolver import resolve_checkpoint
 from app.services.embedder import Embedder
@@ -57,3 +57,4 @@ app.include_router(index.router)
 app.include_router(image.router)
 app.include_router(feedback_routes.router)
 app.include_router(webhook.router)
+app.include_router(score.router)
