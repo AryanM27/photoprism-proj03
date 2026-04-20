@@ -81,6 +81,7 @@ jobs:
           host: ${{ secrets.CHAMELEON_VM_IP }}
           username: cc
           key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
           script: |
             cd /home/cc/photoprism-proj03
             git pull
@@ -111,6 +112,7 @@ jobs:
           host: ${{ secrets.CHAMELEON_VM_IP }}
           username: cc
           key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
           script: |
             cd /home/cc/photoprism-proj03
             git revert HEAD --no-edit
