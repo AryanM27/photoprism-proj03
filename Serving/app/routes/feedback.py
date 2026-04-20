@@ -20,7 +20,7 @@ class LikeRequest(BaseModel):
     score: float = 0.0
 
 
-@router.post("/feedback/like", status_code=204)
+@router.post("/feedback/like")
 def like_image(req: LikeRequest):
     if fb._Session is None:
         raise HTTPException(status_code=503, detail="feedback DB not available")
@@ -53,6 +53,7 @@ def like_image(req: LikeRequest):
         session.commit()
         session.close()
         logger.info("Recorded like for image %s", req.image_id)
+        return {"liked": True, "image_id": req.image_id}
     except Exception as exc:
         logger.error("Failed to record like for %s: %s", req.image_id, exc)
         raise HTTPException(status_code=500, detail=str(exc))
