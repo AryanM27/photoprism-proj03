@@ -30,8 +30,10 @@ jobs:
           key: ${{ secrets.CHAMELEON_SSH_KEY }}
           passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
           script: |
-            source /mnt/block/.venv/bin/activate
             cd /home/cc/photoprism-proj03/Data
+            source /mnt/block/.venv/bin/activate
+            export $(grep -v '^#' ../docker/.env | xargs)
+            export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/photoprism"
             dvc repro build_manifests
             dvc push
 
