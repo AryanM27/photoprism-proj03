@@ -6,6 +6,10 @@ weighted random action, executes it, then sleeps for a log-normally
 distributed think time.
 
 Target: ~30 ticks/min  (mean think time ~2 s, log-normal sigma = 0.5)
+
+Multiple users are supported via NUM_USERS env var. Each user runs in
+its own thread sharing the same Photoprism credentials but with an
+independent session and SimState.
 """
 
 import logging
@@ -14,6 +18,7 @@ import os
 import random
 import signal
 import time
+import threading
 
 from .actions import ACTION_FNS, pick_action
 from .bootstrap import bootstrap, teardown
@@ -37,37 +42,25 @@ def _think_time(mean_seconds: float = 2.0, sigma: float = 0.5) -> float:
     return max(0.1, random.lognormvariate(mu, sigma))
 
 
-def run_forever(
+def _run_user(
+    user_index: int,
     photoprism_url: str,
     username: str,
     password: str,
-    s3_bucket: str,
-    s3_prefix: str,
-    mean_think_seconds: float = 2.0,
+    s3_source: S3ImageSource,
+    mean_think_seconds: float,
 ) -> None:
-    global _STOP
-    _STOP = False
-
-    signal.signal(signal.SIGTERM, _handle_signal)
-    signal.signal(signal.SIGINT, _handle_signal)
-
-    s3_source = S3ImageSource(bucket=s3_bucket, prefix=s3_prefix)
+    """Run a single simulated user loop in its own thread."""
     client = PhotoprismClient(base_url=photoprism_url, username=username, password=password)
-
     state = bootstrap(client)
-    logger.info(
-        "Simulation started: user=%s url=%s bucket=%s prefix=%s",
-        username,
-        photoprism_url,
-        s3_bucket,
-        s3_prefix,
-    )
+    state.user_id = f"datagen_user_{user_index}"
+    logger.info("User %d started (session user=%s)", user_index, username)
 
     tick = 0
     while not _STOP:
         tick += 1
         action = pick_action()
-        logger.info("[tick %d] action=%s", tick, action)
+        logger.debug("[user %d tick %d] action=%s", user_index, tick, action)
 
         fn = ACTION_FNS[action]
         try:
@@ -76,21 +69,50 @@ def run_forever(
             else:
                 fn(client, state)
         except Exception as exc:
-            logger.error("[tick %d] %s raised: %s", tick, action, exc)
+            logger.error("[user %d tick %d] %s raised: %s", user_index, tick, action, exc)
 
         think = _think_time(mean_think_seconds)
-        logger.debug("[tick %d] sleeping %.2fs", tick, think)
         time.sleep(think)
 
     teardown(client)
     logger.info(
-        "Simulation stopped after %d ticks — searches=%d uploads=%d likes=%d browses=%d",
-        tick,
-        state.searches_done,
-        state.uploads_done,
-        state.likes_done,
-        state.browses_done,
+        "User %d stopped after %d ticks — searches=%d uploads=%d likes=%d browses=%d",
+        user_index, tick,
+        state.searches_done, state.uploads_done, state.likes_done, state.browses_done,
     )
+
+
+def run_forever(
+    photoprism_url: str,
+    username: str,
+    password: str,
+    s3_bucket: str,
+    s3_prefix: str,
+    mean_think_seconds: float = 2.0,
+    num_users: int = 1,
+) -> None:
+    global _STOP
+    _STOP = False
+
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+
+    s3_source = S3ImageSource(bucket=s3_bucket, prefix=s3_prefix)
+    logger.info("Starting %d simulated user(s)", num_users)
+
+    threads = []
+    for i in range(1, num_users + 1):
+        t = threading.Thread(
+            target=_run_user,
+            args=(i, photoprism_url, username, password, s3_source, mean_think_seconds),
+            daemon=True,
+            name=f"datagen-user-{i}",
+        )
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
 
 
 if __name__ == "__main__":
@@ -112,6 +134,12 @@ if __name__ == "__main__":
         type=float,
         default=float(os.getenv("MEAN_THINK_SECONDS", "2.0")),
     )
+    parser.add_argument(
+        "--num-users",
+        type=int,
+        default=int(os.getenv("NUM_USERS", "1")),
+        help="Number of concurrent simulated users",
+    )
     args = parser.parse_args()
 
     if not args.password:
@@ -126,4 +154,5 @@ if __name__ == "__main__":
         s3_bucket=args.s3_bucket,
         s3_prefix=args.s3_prefix,
         mean_think_seconds=args.mean_think,
+        num_users=args.num_users,
     )
