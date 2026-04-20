@@ -1,10 +1,18 @@
 """
 Prometheus metric definitions shared across all Celery workers.
+
+Uses prometheus_client multiprocess mode so metrics updated in Celery
+child processes (ForkPoolWorkers) are visible to the main process HTTP server.
+
+Requires PROMETHEUS_MULTIPROC_DIR env var to point to a writable directory.
 Each worker calls start_metrics_server(port) once at startup.
 """
 import os
 import logging
-from prometheus_client import Counter, Histogram, start_http_server
+import threading
+from wsgiref.simple_server import make_server
+
+from prometheus_client import Counter, Histogram, CollectorRegistry, multiprocess, make_wsgi_app
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +42,33 @@ INGESTION_FILES_SEEN = Counter(
 )
 
 
+def _multiprocess_app():
+    def app(environ, start_response):
+        registry = CollectorRegistry()
+        multiprocess.MultiProcessCollector(registry)
+        return make_wsgi_app(registry)(environ, start_response)
+    return app
+
+
 def start_metrics_server(port: int) -> None:
-    """Start the Prometheus HTTP /metrics server on the given port."""
-    try:
-        start_http_server(port)
-        logger.info("Prometheus metrics server started on port %d", port)
-    except OSError as exc:
-        logger.warning("Could not start metrics server on port %d: %s", port, exc)
+    """Start the Prometheus /metrics server.
+
+    Uses MultiProcessCollector when PROMETHEUS_MULTIPROC_DIR is set so that
+    observations made in Celery child processes are visible to Prometheus.
+    """
+    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR", "")
+    if multiproc_dir:
+        os.makedirs(multiproc_dir, exist_ok=True)
+        try:
+            httpd = make_server("", port, _multiprocess_app())
+            threading.Thread(target=httpd.serve_forever, daemon=True).start()
+            logger.info("Prometheus metrics server (multiprocess) started on port %d", port)
+        except OSError as exc:
+            logger.warning("Could not start metrics server on port %d: %s", port, exc)
+    else:
+        from prometheus_client import start_http_server
+        try:
+            start_http_server(port)
+            logger.info("Prometheus metrics server started on port %d", port)
+        except OSError as exc:
+            logger.warning("Could not start metrics server on port %d: %s", port, exc)
