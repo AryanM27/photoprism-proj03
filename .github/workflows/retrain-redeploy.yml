@@ -32,12 +32,7 @@ jobs:
           script: |
             cd /home/cc/photoprism-proj03/Data
             source /mnt/block/.venv/bin/activate
-            while IFS='=' read -r key value; do
-              [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
-              value="${value%\"}"
-              value="${value#\"}"
-              export "$key=$value"
-            done < ../docker/.env
+            export $(grep -v '^#' docker/.env | xargs)
             export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/photoprism"
             dvc repro --force build_manifests
             dvc push
