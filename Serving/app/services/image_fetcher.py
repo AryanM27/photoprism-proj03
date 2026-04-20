@@ -32,11 +32,22 @@ def _pg_engine(db_url: str):
 
 
 def fetch_image_bytes(storage_path: str) -> bytes:
-    """Download image bytes from S3. Raises on failure."""
+    """Download image bytes from S3. Raises on failure.
+
+    Accepts either a bare key (data_arm9337/raw/x.jpg) or a full URI
+    (s3://bucket/key or swift://bucket/key) — strips the scheme+bucket prefix.
+    """
     bucket = os.environ.get("S3_BUCKET", "training-module-proj03")
+    key = storage_path
+    for scheme in ("s3://", "swift://"):
+        if key.startswith(scheme):
+            key = key[len(scheme):]
+            if "/" in key:
+                key = key.split("/", 1)[1]
+            break
     s3 = _s3_client()
     buf = io.BytesIO()
-    s3.download_fileobj(bucket, storage_path, buf)
+    s3.download_fileobj(bucket, key, buf)
     return buf.getvalue()
 
 
