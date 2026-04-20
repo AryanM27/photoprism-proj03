@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.routes import health, image, index, search
+from app.routes import feedback, health, image, index, search
 from app.services.checkpoint_resolver import resolve_checkpoint
 from app.services.embedder import Embedder
 from app.services.embedder_onnx import OnnxEmbedder
@@ -54,3 +54,4 @@ app.include_router(health.router)
 app.include_router(search.router)
 app.include_router(index.router)
 app.include_router(image.router)
+app.include_router(feedback.router)
