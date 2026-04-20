@@ -19,6 +19,40 @@ services:
       timeout: 5s
       retries: 20
 
+
+  training-api:
+    image: training-module:rocm
+    container_name: training-api
+    restart: unless-stopped
+
+    depends_on:
+      - mlflow
+      - postgres
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      OS_AUTH_TYPE: ${OS_AUTH_TYPE}
+      OS_AUTH_URL: ${OS_AUTH_URL}
+      OS_IDENTITY_API_VERSION: ${OS_IDENTITY_API_VERSION}
+      OS_REGION_NAME: ${OS_REGION_NAME}
+      OS_INTERFACE: ${OS_INTERFACE}
+      OS_APPLICATION_CREDENTIAL_ID: ${OS_APPLICATION_CREDENTIAL_ID}
+      OS_APPLICATION_CREDENTIAL_SECRET: ${OS_APPLICATION_CREDENTIAL_SECRET}
+      OS_PROJECT_ID: ${OS_PROJECT_ID}
+
+    volumes:
+      - ../../:/app
+
+    working_dir: /app/Training
+
+    command: >
+      uvicorn src.api.train_api:app
+      --host 0.0.0.0
+      --port 8080
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.9.0
     container_name: training-mlflow
