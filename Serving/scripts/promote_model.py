@@ -1,23 +1,33 @@
 """
 promote_model.py
 
-Downloads training summaries for new semantic and aesthetic model candidates
+Downloads training summaries for new semantic and/or aesthetic model candidates
 from S3, compares against current production metrics in config/current_production.yaml,
-and promotes if both models pass their thresholds.
+and promotes each model independently if it passes its threshold.
 
 Usage:
+    # Promote both
     python scripts/promote_model.py \
-        --semantic-path artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt \
-        --aesthetic-path artifacts/aesthetic/mobilenet_v3_large_fusion_real_v2/training_summary.txt
+        --semantic-path artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt \
+        --aesthetic-path artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt
+
+    # Promote semantic only
+    python scripts/promote_model.py \
+        --semantic-path artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt \
+        --semantic-only
+
+    # Promote aesthetic only
+    python scripts/promote_model.py \
+        --aesthetic-path artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt \
+        --aesthetic-only
 
 Exit codes:
-    0 - promoted
+    0 - at least one model promoted
     1 - rejected (metrics did not improve enough)
     2 - error (missing files, bad format, etc.)
 """
 
 import argparse
-import json
 import os
 import sys
 import tempfile
@@ -106,13 +116,7 @@ def check_aesthetic(new: dict, current: dict, thresholds: dict) -> tuple[bool, s
     return True, "aesthetic passed"
 
 
-def update_production_yaml(
-    current: dict,
-    new_semantic: dict,
-    new_aesthetic: dict,
-    semantic_s3_path: str,
-    aesthetic_s3_path: str,
-):
+def update_semantic(current: dict, new_semantic: dict, semantic_s3_path: str):
     current["semantic"]["recall_at_1"] = new_semantic["test_recall_at_1_mean"]
     current["semantic"]["recall_at_5"] = new_semantic.get("test_i2t_recall_at_5", current["semantic"]["recall_at_5"])
     current["semantic"]["contrastive_loss"] = new_semantic.get("best_val_contrastive_loss", current["semantic"]["contrastive_loss"])
@@ -120,6 +124,8 @@ def update_production_yaml(
     current["semantic"]["candidate_name"] = new_semantic.get("candidate_name", current["semantic"]["candidate_name"])
     current["semantic"]["s3_artifact_path"] = semantic_s3_path
 
+
+def update_aesthetic(current: dict, new_aesthetic: dict, aesthetic_s3_path: str):
     current["aesthetic"]["mae"] = new_aesthetic["test_mae"]
     current["aesthetic"]["mse"] = new_aesthetic.get("test_mse_loss", current["aesthetic"]["mse"])
     current["aesthetic"]["rmse"] = new_aesthetic.get("test_rmse", current["aesthetic"]["rmse"])
@@ -127,23 +133,35 @@ def update_production_yaml(
     current["aesthetic"]["candidate_name"] = new_aesthetic.get("candidate_name", current["aesthetic"]["candidate_name"])
     current["aesthetic"]["s3_artifact_path"] = aesthetic_s3_path
 
+
+def save_production_yaml(current: dict):
     with open(CURRENT_PRODUCTION_PATH, "w") as f:
         yaml.dump(current, f, default_flow_style=False, sort_keys=False)
-
     print(f"Updated {CURRENT_PRODUCTION_PATH}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Promote new models to production if metrics improve")
-    parser.add_argument("--semantic-path", required=True,
+    parser.add_argument("--semantic-path", default=None,
                         help="S3 key for new semantic training_summary.txt")
-    parser.add_argument("--aesthetic-path", required=True,
+    parser.add_argument("--aesthetic-path", default=None,
                         help="S3 key for new aesthetic training_summary.txt")
+    parser.add_argument("--semantic-only", action="store_true",
+                        help="Only promote semantic model")
+    parser.add_argument("--aesthetic-only", action="store_true",
+                        help="Only promote aesthetic model")
     parser.add_argument("--dry-run", action="store_true",
                         help="Check metrics but do not update current_production.yaml")
     parser.add_argument("--force", action="store_true",
                         help="Skip metric gate and force promotion regardless of scores")
     args = parser.parse_args()
+
+    run_semantic = args.semantic_path and not args.aesthetic_only
+    run_aesthetic = args.aesthetic_path and not args.semantic_only
+
+    if not run_semantic and not run_aesthetic:
+        print("ERROR: no models to promote. Provide --semantic-path and/or --aesthetic-path.")
+        sys.exit(2)
 
     promotion_cfg = load_yaml(PROMOTION_CONFIG_PATH)
     current = load_yaml(CURRENT_PRODUCTION_PATH)
@@ -157,37 +175,59 @@ def main():
         config=Config(signature_version="s3v4"),
     )
 
+    new_semantic, new_aesthetic = None, None
+
     try:
-        new_semantic = download_summary_from_s3(s3, s3_cfg["bucket"], args.semantic_path)
-        new_aesthetic = download_summary_from_s3(s3, s3_cfg["bucket"], args.aesthetic_path)
+        if run_semantic:
+            new_semantic = download_summary_from_s3(s3, s3_cfg["bucket"], args.semantic_path)
+        if run_aesthetic:
+            new_aesthetic = download_summary_from_s3(s3, s3_cfg["bucket"], args.aesthetic_path)
     except Exception as e:
         print(f"ERROR downloading summaries: {e}")
         sys.exit(2)
 
-    sem_ok, sem_msg = check_semantic(new_semantic, current, promotion_cfg)
-    aes_ok, aes_msg = check_aesthetic(new_aesthetic, current, promotion_cfg)
+    sem_ok, aes_ok = False, False
+    sem_msg, aes_msg = "skipped", "skipped"
+
+    if run_semantic:
+        if args.force:
+            sem_ok, sem_msg = True, "forced"
+        else:
+            sem_ok, sem_msg = check_semantic(new_semantic, current, promotion_cfg)
+
+    if run_aesthetic:
+        if args.force:
+            aes_ok, aes_msg = True, "forced"
+        else:
+            aes_ok, aes_msg = check_aesthetic(new_aesthetic, current, promotion_cfg)
 
     print(f"\nSemantic:  {'PASS' if sem_ok else 'FAIL'} — {sem_msg}")
     print(f"Aesthetic: {'PASS' if aes_ok else 'FAIL'} — {aes_msg}")
 
-    if args.force:
-        print("\nForce flag set — skipping metric gate. Promoting to production.")
-        if not args.dry_run:
-            update_production_yaml(current, new_semantic, new_aesthetic,
-                                   args.semantic_path, args.aesthetic_path)
-        sys.exit(0)
+    promoted = False
 
-    if sem_ok and aes_ok:
-        print("\nBoth models passed. Promoting to production.")
+    if sem_ok and new_semantic:
+        print("\nSemantic model passed — promoting.")
         if not args.dry_run:
-            update_production_yaml(current, new_semantic, new_aesthetic,
-                                   args.semantic_path, args.aesthetic_path)
-        else:
-            print("Dry run — skipping update.")
-        sys.exit(0)
-    else:
-        print("\nPromotion rejected. Keeping current production model.")
+            update_semantic(current, new_semantic, args.semantic_path)
+        promoted = True
+
+    if aes_ok and new_aesthetic:
+        print("Aesthetic model passed — promoting.")
+        if not args.dry_run:
+            update_aesthetic(current, new_aesthetic, args.aesthetic_path)
+        promoted = True
+
+    if promoted and not args.dry_run:
+        save_production_yaml(current)
+    elif args.dry_run:
+        print("Dry run — skipping update.")
+
+    if not promoted:
+        print("\nNo models promoted. Keeping current production.")
         sys.exit(1)
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":

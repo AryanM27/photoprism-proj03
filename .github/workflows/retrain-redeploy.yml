@@ -37,16 +37,16 @@ jobs:
             dvc repro --force build_manifests
             dvc push
 
-  trigger-training:
-    name: Trigger Training Jobs
+  run-training:
+    name: Run Training Jobs (Sequential)
     runs-on: ubuntu-latest
     needs: build-manifest
     outputs:
-      semantic_job_id: ${{ steps.semantic.outputs.job_id }}
-      aesthetic_job_id: ${{ steps.aesthetic.outputs.job_id }}
+      semantic_succeeded: ${{ steps.set_outcomes.outputs.semantic_succeeded }}
+      aesthetic_succeeded: ${{ steps.set_outcomes.outputs.aesthetic_succeeded }}
     steps:
       - name: Trigger semantic training
-        id: semantic
+        id: trigger_semantic
         run: |
           TRIGGER_REASON="${{ github.event.inputs.trigger_reason }}"
           TRIGGER_REASON="${TRIGGER_REASON:-scheduled}"
@@ -64,8 +64,24 @@ jobs:
           JOB_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
           echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
 
+      - name: Wait for semantic training
+        id: wait_semantic
+        continue-on-error: true
+        run: |
+          JOB_ID="${{ steps.trigger_semantic.outputs.job_id }}"
+          for i in $(seq 1 180); do
+            STATUS=$(curl -s "${{ secrets.TRAINING_API_URL }}/train/status/$JOB_ID" | \
+              python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+            echo "[$i/180] Semantic job status: $STATUS"
+            if [ "$STATUS" = "completed" ]; then exit 0; fi
+            if [ "$STATUS" = "failed" ]; then echo "Semantic training failed"; exit 1; fi
+            sleep 60
+          done
+          echo "Timeout waiting for semantic training (3 hours exceeded)"
+          exit 1
+
       - name: Trigger aesthetic training
-        id: aesthetic
+        id: trigger_aesthetic
         run: |
           TRIGGER_REASON="${{ github.event.inputs.trigger_reason }}"
           TRIGGER_REASON="${TRIGGER_REASON:-scheduled}"
@@ -83,28 +99,11 @@ jobs:
           JOB_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
           echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
 
-  wait-for-training:
-    name: Wait for Training to Complete
-    runs-on: ubuntu-latest
-    needs: trigger-training
-    steps:
-      - name: Poll semantic job status
+      - name: Wait for aesthetic training
+        id: wait_aesthetic
+        continue-on-error: true
         run: |
-          JOB_ID="${{ needs.trigger-training.outputs.semantic_job_id }}"
-          for i in $(seq 1 180); do
-            STATUS=$(curl -s "${{ secrets.TRAINING_API_URL }}/train/status/$JOB_ID" | \
-              python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
-            echo "[$i/180] Semantic job status: $STATUS"
-            if [ "$STATUS" = "completed" ]; then exit 0; fi
-            if [ "$STATUS" = "failed" ]; then echo "Semantic training failed"; exit 1; fi
-            sleep 60
-          done
-          echo "Timeout waiting for semantic training (3 hours exceeded)"
-          exit 1
-
-      - name: Poll aesthetic job status
-        run: |
-          JOB_ID="${{ needs.trigger-training.outputs.aesthetic_job_id }}"
+          JOB_ID="${{ steps.trigger_aesthetic.outputs.job_id }}"
           for i in $(seq 1 180); do
             STATUS=$(curl -s "${{ secrets.TRAINING_API_URL }}/train/status/$JOB_ID" | \
               python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
@@ -116,10 +115,21 @@ jobs:
           echo "Timeout waiting for aesthetic training (3 hours exceeded)"
           exit 1
 
+      - name: Set training outcomes
+        id: set_outcomes
+        if: always()
+        run: |
+          SEM="${{ steps.wait_semantic.outcome }}"
+          AES="${{ steps.wait_aesthetic.outcome }}"
+          echo "Semantic: $SEM | Aesthetic: $AES"
+          [ "$SEM" = "success" ] && echo "semantic_succeeded=true" >> $GITHUB_OUTPUT || echo "semantic_succeeded=false" >> $GITHUB_OUTPUT
+          [ "$AES" = "success" ] && echo "aesthetic_succeeded=true" >> $GITHUB_OUTPUT || echo "aesthetic_succeeded=false" >> $GITHUB_OUTPUT
+
   promote-and-deploy:
     name: Promote Model and Redeploy
     runs-on: ubuntu-latest
-    needs: wait-for-training
+    needs: run-training
+    if: always() && (needs.run-training.outputs.semantic_succeeded == 'true' || needs.run-training.outputs.aesthetic_succeeded == 'true')
     permissions:
       contents: write
       issues: write
@@ -137,28 +147,46 @@ jobs:
       - name: Install dependencies
         run: pip install boto3 pyyaml
 
-      - name: Run promotion check
-        id: promote
+      - name: Promote semantic model
+        id: promote_semantic
+        if: needs.run-training.outputs.semantic_succeeded == 'true'
+        continue-on-error: true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           SEMANTIC_PATH="${{ github.event.inputs.semantic_path }}"
           SEMANTIC_PATH="${SEMANTIC_PATH:-artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt}"
+          python Serving/scripts/promote_model.py \
+            --semantic-path "$SEMANTIC_PATH" \
+            --semantic-only
+
+      - name: Promote aesthetic model
+        id: promote_aesthetic
+        if: needs.run-training.outputs.aesthetic_succeeded == 'true'
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
           AESTHETIC_PATH="${{ github.event.inputs.aesthetic_path }}"
           AESTHETIC_PATH="${AESTHETIC_PATH:-artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt}"
           python Serving/scripts/promote_model.py \
-            --semantic-path "$SEMANTIC_PATH" \
-            --aesthetic-path "$AESTHETIC_PATH"
-        continue-on-error: true
+            --aesthetic-path "$AESTHETIC_PATH" \
+            --aesthetic-only
 
       - name: Check promotion result
+        id: promote
         run: |
-          if [ "${{ steps.promote.outcome }}" = "failure" ]; then
-            echo "Promotion rejected — keeping current production model. No redeployment."
-            exit 0
+          SEM="${{ steps.promote_semantic.outcome }}"
+          AES="${{ steps.promote_aesthetic.outcome }}"
+          echo "Semantic promotion: $SEM | Aesthetic promotion: $AES"
+          if [ "$SEM" = "success" ] || [ "$AES" = "success" ]; then
+            echo "At least one model promoted — proceeding with redeployment."
+          else
+            echo "No models promoted — keeping current production. No redeployment."
+            exit 1
           fi
-          echo "Promotion approved — proceeding with redeployment."
 
       - name: Commit updated current_production.yaml
         if: steps.promote.outcome == 'success'
