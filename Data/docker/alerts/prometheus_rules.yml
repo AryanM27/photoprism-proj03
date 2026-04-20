@@ -29,17 +29,6 @@ groups:
 
   - name: serving_retrain_alerts
     rules:
-      - alert: SearchVolumeDropped
-        expr: |
-          rate(http_requests_total{handler="/search"}[10m]) == 0
-        for: 10m
-        labels:
-          severity: warning
-          action: retrain
-        annotations:
-          summary: "Zero search traffic for 10m — possible model failure or drift"
-          description: "No /search requests recorded in the last 10 minutes. Check model health and Evidently drift reports."
-
       - alert: MultiColumnDriftDetected
         expr: |
           count(
