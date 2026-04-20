@@ -15,12 +15,11 @@ logger = logging.getLogger(__name__)
 
 # Action weights — must sum to 1.0
 ACTION_WEIGHTS = {
-    "search": 0.25,
     "browse": 0.25,
     "upload": 0.15,
     "favorite": 0.15,
-    "semantic_search": 0.10,
-    "click": 0.10,
+    "semantic_search": 0.30,
+    "click": 0.15,
 }
 
 
@@ -146,7 +145,6 @@ def do_click(client: PhotoprismClient, state: SimState) -> None:
 
 
 ACTION_FNS = {
-    "search": do_search,
     "browse": do_browse,
     "upload": do_upload,
     "favorite": do_favorite,
