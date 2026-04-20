@@ -8,4 +8,4 @@ qdrant-client==1.9.1
 open-clip-torch>=2.24.0
 prometheus-client==0.20.0
 pandas>=2.0.0
-evidently==0.4.30
+evidently==0.4.33
