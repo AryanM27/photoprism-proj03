@@ -32,9 +32,13 @@ jobs:
           script: |
             cd /home/cc/photoprism-proj03/Data
             source /mnt/block/.venv/bin/activate
-            export $(grep -v '^#' ../docker/.env | xargs)
+            set -a; source ../docker/.env; set +a
             export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/photoprism"
+<<<<<<< HEAD
             dvc repro build_manifests --force
+=======
+            dvc repro --force build_manifests
+>>>>>>> 94bcfe5 (fixes)
             dvc push
 
   trigger-training:
