@@ -60,8 +60,9 @@ def reprocess_image(self, image_id: str, model_version: str, aesthetic_score: fl
             image.embedded_at = None
 
         # Auto-fetch aesthetic score for user uploads that don't have one yet
-        if aesthetic_score is None and image.source_dataset == "user" and image.image_uri:
-            aesthetic_score = _fetch_aesthetic_score(image.image_uri)
+        if aesthetic_score is None and image.source_dataset == "user" and image.storage_path:
+            s3_path = f"s3://{os.environ.get('S3_BUCKET', 'training-module-proj03')}/{image.storage_path}"
+            aesthetic_score = _fetch_aesthetic_score(s3_path)
 
         if aesthetic_score is not None:
             image_metadata = db.query(ImageMetadata).filter_by(image_id=image_id).first()

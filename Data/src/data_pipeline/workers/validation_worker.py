@@ -75,8 +75,9 @@ def process_validation_event(self, event: dict) -> dict:
 
         metadata = extract_metadata(storage_path, image_id, source_dataset)
 
-        if source_dataset == "user" and image and image.image_uri:
-            _score_user_upload(image.image_uri, metadata)
+        if source_dataset == "user" and image and image.storage_path:
+            s3_path = f"s3://{os.environ.get('S3_BUCKET', 'training-module-proj03')}/{image.storage_path}"
+            _score_user_upload(s3_path, metadata)
 
         db.add(metadata)
         if image:
