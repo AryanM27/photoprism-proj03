@@ -35,10 +35,10 @@ _AESTHETIC_SCALE = 10.0
 
 import boto3
 from botocore.client import Config
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from src.data_pipeline.db.session import SessionLocal
-from src.data_pipeline.db.models import Image, ImageMetadata, DatasetSnapshot
+from src.data_pipeline.db.models import Image, ImageMetadata, DatasetSnapshot, FeedbackEvent
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +167,13 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None, ts
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
 
+        click_counts = dict(
+            db.query(FeedbackEvent.image_id, func.count().label("n"))
+            .filter(FeedbackEvent.clicked == True)
+            .group_by(FeedbackEvent.image_id)
+            .all()
+        )
+
         # train split includes both train and val records
         train_records, test_records = [], []
         for image, meta in query.all():
@@ -180,6 +187,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None, ts
                 "text_id":         str(uuid.uuid5(uuid.NAMESPACE_DNS, meta.text)),
                 "text":            meta.text,
                 "pair_label":      1,
+                "num_clicks":      click_counts.get(image.image_id, 0),
             }
             if image.split == "test":
                 test_records.append(record)
@@ -242,6 +250,13 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None, t
         if source_dataset:
             query = query.filter(Image.source_dataset == source_dataset)
 
+        fav_counts = dict(
+            db.query(FeedbackEvent.image_id, func.count().label("n"))
+            .filter(FeedbackEvent.favorited == True)
+            .group_by(FeedbackEvent.image_id)
+            .all()
+        )
+
         train_records, test_records = [], []
         for image, meta in query.all():
             raw_score = float(meta.aesthetic_score)
@@ -258,6 +273,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None, t
                 "dataset_version": version,
                 "source_dataset":  image.source_dataset,
                 "aesthetic_score": round(raw_score * _AESTHETIC_SCALE, 4),
+                "num_favourites":  fav_counts.get(image.image_id, 0),
             }
             if image.split == "test":
                 test_records.append(record)

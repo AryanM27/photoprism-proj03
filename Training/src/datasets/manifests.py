@@ -13,6 +13,7 @@ REQUIRED_SEMANTIC_FIELDS = {
     "text_id",
     "text",
     "pair_label",
+    "num_clicks",
 }
 
 REQUIRED_AESTHETIC_FIELDS = {
@@ -22,6 +23,7 @@ REQUIRED_AESTHETIC_FIELDS = {
     "dataset_version",
     "source_dataset",
     "aesthetic_score",
+    "num_favourites",
 }
 
 VALID_SPLITS = {"train", "val", "test"}
