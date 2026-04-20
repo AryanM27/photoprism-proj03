@@ -54,6 +54,13 @@ def _apply_request_overrides(base_config: dict, req: TrainRequest) -> dict:
     if req.evaluation_max_records is not None:
         overrides.setdefault("evaluation", {})["max_records"] = req.evaluation_max_records
 
+    if req.click_weight_alpha is not None:
+        overrides.setdefault("training", {})["click_weight_alpha"] = req.click_weight_alpha
+    if req.favourite_weight_alpha is not None:
+        overrides.setdefault("training", {})["favourite_weight_alpha"] = req.favourite_weight_alpha
+    if req.max_feedback_weight is not None:
+        overrides.setdefault("training", {})["max_feedback_weight"] = req.max_feedback_weight
+
     config = deep_update(base_config, overrides)
 
     # small metadata tags for observability

@@ -78,6 +78,7 @@ class AestheticDataset(Dataset):
             "split": record["split"],
             "dataset_version": record["dataset_version"],
             "source_dataset": record["source_dataset"],
+            "num_favourites": int(record.get("num_favourites", 0)),
             }
         
         except Exception as e:

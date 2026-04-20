@@ -65,14 +65,35 @@ def collate_fn(batch):
         "image_ids": [item["image_id"] for item in batch],
         "texts": [item["text"] for item in batch],
         "image_tensors": torch.stack([item["image_tensor"] for item in batch]),
+        "num_clicks": torch.tensor(
+            [item.get("num_clicks", 0) for item in batch],
+            dtype=torch.float32,
+        ),
     }
 
-def contrastive_loss(image_emb, text_emb, logit_scale):
+def compute_feedback_weights(
+    counts: torch.Tensor,
+    alpha: float,
+    max_weight: float,
+) -> torch.Tensor:
+    weights = 1.0 + alpha * torch.log1p(counts.float())
+    return torch.clamp(weights, max=max_weight)
+
+def contrastive_loss(image_emb, text_emb, logit_scale, sample_weights=None):
     logits = logit_scale.exp() * (image_emb @ text_emb.T)
     labels = torch.arange(logits.size(0), device=logits.device)
 
     loss_i = F.cross_entropy(logits, labels)
     loss_t = F.cross_entropy(logits.T, labels)
+
+    if sample_weights is not None:
+        weights = sample_weights.to(logits.device).float()
+        weights = weights / weights.mean().clamp_min(1e-8)
+        loss_i = (loss_i * weights).mean()
+        loss_t = (loss_t * weights).mean()
+    else:
+        loss_i = loss_i.mean()
+        loss_t = loss_t.mean()
 
     return (loss_i + loss_t) / 2.0
 
@@ -91,11 +112,20 @@ def run_one_epoch(model, loader, optimizer, device, train: bool, config: dict):
             continue
 
         images = batch["image_tensors"].to(device)
+        num_clicks = batch["num_clicks"].to(device)
 
         if config["model"]["type"]=="openclip_enhanced":
             text_inputs = model.tokenizer(batch["texts"]).to(device)
         else:
             text_inputs = build_text_features(batch["texts"]).to(device)
+
+        click_weight_alpha = config["training"].get("click_weight_alpha", 0.20)
+        max_feedback_weight = config["training"].get("max_feedback_weight", 3.0)
+        sample_weights = compute_feedback_weights(
+            num_clicks,
+            alpha=click_weight_alpha,
+            max_weight=max_feedback_weight,
+        )
 
         if train:
             optimizer.zero_grad()
@@ -103,7 +133,7 @@ def run_one_epoch(model, loader, optimizer, device, train: bool, config: dict):
         with torch.set_grad_enabled(train):
             image_emb = model.encode_image(images)
             text_emb = model.encode_text(text_inputs)
-            loss = contrastive_loss(image_emb, text_emb, model.logit_scale)
+            loss = contrastive_loss(image_emb, text_emb, model.logit_scale, sample_weights=sample_weights)
 
             if train:
                 loss.backward()

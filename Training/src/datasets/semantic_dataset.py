@@ -82,6 +82,7 @@ class SemanticRetrievalDataset(Dataset):
                 "source_dataset": record["source_dataset"],
                 "image_tensor": image_tensor,
                 "pair_label": record["pair_label"],
+                "num_clicks": int(record.get("num_clicks", 0)),
             }
 
         except Exception as e:

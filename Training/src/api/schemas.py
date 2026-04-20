@@ -27,6 +27,10 @@ class TrainRequest(BaseModel):
     evaluation_manifest_uri: Optional[str] = None
     evaluation_max_records: Optional[int] = None
 
+    click_weight_alpha: Optional[float] = None
+    favourite_weight_alpha: Optional[float] = None
+    max_feedback_weight: Optional[float] = None
+
 
 class TrainResponse(BaseModel):
     job_id: str

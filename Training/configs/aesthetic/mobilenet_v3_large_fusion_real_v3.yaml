@@ -28,6 +28,8 @@ training:
   advance_chunk_on_resume: true
   carry_optimizer_to_next_chunk: false
   log_every_n_batches: 50
+  favourite_weight_alpha: 0.30
+  max_feedback_weight: 4.0
 
 evaluation:
   run_test_after_training: true

@@ -26,6 +26,7 @@ from src.storage.artifact_io import save_history_artifact, save_summary_artifact
 import mlflow
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
@@ -67,8 +68,15 @@ def safe_collate(batch):
 def make_loader(dataset, batch_size: int, shuffle: bool, safe_collate):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=safe_collate,)
 
+def compute_feedback_weights(
+    counts: torch.Tensor,
+    alpha: float,
+    max_weight: float,
+) -> torch.Tensor:
+    weights = 1.0 + alpha * torch.log1p(counts.float())
+    return torch.clamp(weights, max=max_weight)
 
-def run_one_epoch(model, loader, criterion, optimizer, device, train: bool):
+def run_one_epoch(model, loader, criterion, optimizer, device, train: bool, config: dict):
     if train:
         model.train()
     else:
@@ -78,18 +86,30 @@ def run_one_epoch(model, loader, criterion, optimizer, device, train: bool):
     total_abs_error = 0.0
     total_samples = 0
 
+    favourite_weight_alpha = config["training"].get("favourite_weight_alpha", 0.30)
+    max_feedback_weight = config["training"].get("max_feedback_weight", 4.0)
+
     for batch in loader:
         if batch is None:
             continue
         images = batch["image_tensor"].to(device)
         targets = batch["aesthetic_score"].to(device).float()
+        num_favourites = batch["num_favourites"].to(device).float()
 
         if train:
             optimizer.zero_grad()
 
         with torch.set_grad_enabled(train):
             preds = model(images)
-            loss = criterion(preds, targets)
+            sample_weights = compute_feedback_weights(
+                num_favourites,
+                alpha=favourite_weight_alpha,
+                max_weight=max_feedback_weight,
+            ).to(device)
+
+            per_sample_mse = F.mse_loss(preds, targets, reduction="none")
+            sample_weights = sample_weights / sample_weights.mean().clamp_min(1e-8)
+            loss = (per_sample_mse * sample_weights).mean()
 
             if train:
                 loss.backward()
@@ -218,69 +238,13 @@ def train_aesthetic_baseline(config_path: str) -> dict:
     else:
         raise ValueError(f"Invalid resume mode: {resume_mode}")
 
-    # if should_resume and checkpoint_exists(checkpoint_dir):
-    #     print("Will be resuming from checkpoint", flush=True)
-    #     state, metadata = load_latest_checkpoint(checkpoint_dir, map_location=str(device))
-
-    #     model.load_state_dict(state["model_state_dict"])
-    #     resumed_from_checkpoint = True
-
-    #     advance_chunk = config["training"].get("advance_chunk_on_resume", False)
-
-    #     if advance_chunk:
-    #         next_start = metadata.get("next_start_index")
-
-    #         if next_start is not None:
-    #             print(f"\n>>> ADVANCING TO NEXT CHUNK: {next_start}", flush=True)
-
-    #             start_index = next_start
-
-    #             #rebuild train dataset for next chunk
-    #             train_dataset = AestheticDataset(
-    #                 manifest_path=manifest_path,
-    #                 split="train",
-    #                 config=config,
-    #                 image_size=config["model"]["image_size"],
-    #                 start_index=start_index,
-    #                 max_records=max_records,
-    #                 subset_seed=subset_seed,
-    #             )
-
-    #             print(f"New Train samples: {len(train_dataset)}", flush=True)
-
-    #             #reset epoch schedule for the new chunk
-    #             start_epoch = 1
-    #             global_step = 0
-    #             best_val_loss = float("inf")
-
-    #             #carry optimizer state forward
-    #             if config["training"].get("carry_optimizer_to_next_chunk", True):
-    #                 if "optimizer_state_dict" in state:
-    #                     optimizer.load_state_dict(state["optimizer_state_dict"])
-    #             else:
-    #                 print("Not carrying optimizer state to next chunk", flush=True)
-
-    #         else:
-    #             print("advance_chunk_on_resume=True but no next_start_index found; resuming same chunk", flush=True)
-
-    #             optimizer.load_state_dict(state["optimizer_state_dict"])
-    #             start_epoch = state["epoch"] + 1
-    #             global_step = state["global_step"]
-    #             best_val_loss = metadata.get("metric_value", best_val_loss)
-
-    #     else:
-    #         optimizer.load_state_dict(state["optimizer_state_dict"])
-    #         start_epoch = state["epoch"] + 1
-    #         global_step = state["global_step"]
-    #         best_val_loss = metadata.get("metric_value", best_val_loss)
-
     if should_resume and checkpoint_exists(checkpoint_dir):
         print("Will be resuming from checkpoint", flush=True)
 
-        # Always load checkpoint to CPU first for ROCm safety
+        #always load checkpoint to CPU first for ROCm safety
         state, metadata = load_latest_checkpoint(checkpoint_dir, map_location="cpu")
 
-        # Restore model weights
+        #restore model weights
         model.load_state_dict(state["model_state_dict"])
 
         ckpt_model_type = metadata.get("model_type")
@@ -452,6 +416,7 @@ def train_aesthetic_baseline(config_path: str) -> dict:
                 optimizer=optimizer,
                 device=device,
                 train=True,
+                config=config,
             )
             val_metrics = run_one_epoch(
                 model=model,
@@ -460,6 +425,7 @@ def train_aesthetic_baseline(config_path: str) -> dict:
                 optimizer=optimizer,
                 device=device,
                 train=False,
+                config=config,
             )
 
             global_step += len(train_loader)
