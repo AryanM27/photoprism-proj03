@@ -14,6 +14,9 @@ class SimState:
     # Albums seen this session
     seen_albums: list[str] = field(default_factory=list)
 
+    # Semantic IDs seen this session
+    seen_semantic_ids: list[dict] = field(default_factory=list)
+
     # Counters
     searches_done: int = 0
     uploads_done: int = 0
@@ -31,6 +34,16 @@ class SimState:
         self.seen_albums.extend(uids)
         if len(self.seen_albums) > 50:
             self.seen_albums = self.seen_albums[-50:]
+
+    def add_semantic_ids(self, results: list[dict]) -> None:
+        self.seen_semantic_ids.extend(results)
+        if len(self.seen_semantic_ids) > self.MAX_SEEN:
+            self.seen_semantic_ids = self.seen_semantic_ids[-self.MAX_SEEN:]
+
+    def random_semantic_result(self) -> dict | None:
+        if not self.seen_semantic_ids:
+            return None
+        return random.choice(self.seen_semantic_ids)
 
     def random_seen_photo(self) -> str | None:
         if not self.seen_photos:

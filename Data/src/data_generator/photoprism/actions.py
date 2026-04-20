@@ -15,10 +15,12 @@ logger = logging.getLogger(__name__)
 
 # Action weights — must sum to 1.0
 ACTION_WEIGHTS = {
-    "search": 0.35,
-    "browse": 0.35,
+    "search": 0.25,
+    "browse": 0.25,
     "upload": 0.15,
     "favorite": 0.15,
+    "semantic_search": 0.10,
+    "click": 0.10,
 }
 
 
@@ -37,6 +39,19 @@ def do_search(client: PhotoprismClient, state: SimState) -> None:
     uids = [p["UID"] for p in photos if "UID" in p]
     state.add_photos(uids)
     state.searches_done += 1
+
+
+def do_semantic_search(client: PhotoprismClient, state: SimState) -> None:
+    query = random_query()
+    logger.debug("[%s] semantic_search: %s", state.user_id, query)
+    try:
+        results = client.search_semantic(query, count=random.randint(5, 20))
+        for r in results:
+            r["_query"] = query
+        state.add_semantic_ids(results)
+        state.searches_done += 1
+    except requests.RequestException as exc:
+        logger.warning("[%s] semantic search failed: %s", state.user_id, exc)
 
 
 def _browse_album_safe(client: PhotoprismClient, state: SimState, album_uid: str, count: int) -> list[dict]:
@@ -114,9 +129,27 @@ def do_favorite(client: PhotoprismClient, state: SimState) -> None:
         logger.warning("[%s] like %s failed: %s", state.user_id, uid, exc)
 
 
+def do_click(client: PhotoprismClient, state: SimState) -> None:
+    result = state.random_semantic_result()
+    if not result:
+        logger.debug("[%s] click skipped — no semantic results seen", state.user_id)
+        return
+    try:
+        client.click_photo_semantic(
+            image_id=result.get("id", ""),
+            query=result.get("_query", ""),
+            score=result.get("score", 0.0),
+        )
+        logger.debug("[%s] clicked %s", state.user_id, result.get("id"))
+    except requests.RequestException as exc:
+        logger.warning("[%s] click failed: %s", state.user_id, exc)
+
+
 ACTION_FNS = {
     "search": do_search,
     "browse": do_browse,
     "upload": do_upload,
     "favorite": do_favorite,
+    "semantic_search": do_semantic_search,
+    "click": do_click,
 }
