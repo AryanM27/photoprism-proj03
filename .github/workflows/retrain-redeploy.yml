@@ -34,7 +34,7 @@ jobs:
             source /mnt/block/.venv/bin/activate
             export $(grep -v '^#' ../docker/.env | xargs)
             export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/photoprism"
-            dvc repro build_manifests
+            dvc repro --force build_manifests
             dvc push
 
   trigger-training:
