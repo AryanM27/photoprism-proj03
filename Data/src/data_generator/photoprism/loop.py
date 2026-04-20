@@ -52,7 +52,20 @@ def _run_user(
 ) -> None:
     """Run a single simulated user loop in its own thread."""
     client = PhotoprismClient(base_url=photoprism_url, username=username, password=password)
-    state = bootstrap(client)
+
+    # Wait for Photoprism to be ready before logging in
+    for attempt in range(30):
+        try:
+            state = bootstrap(client)
+            break
+        except Exception as exc:
+            if attempt < 29:
+                logger.info("User %d: Photoprism not ready, retrying in 10s (%s)", user_index, exc)
+                time.sleep(10)
+            else:
+                logger.error("User %d: gave up waiting for Photoprism", user_index)
+                return
+
     state.user_id = f"datagen_user_{user_index}"
     logger.info("User %d started (session user=%s)", user_index, username)
 
