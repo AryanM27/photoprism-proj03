@@ -19,9 +19,24 @@ on:
         default: "manual"
 
 jobs:
+  build-manifest:
+    name: Build Dataset Manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CHAMELEON_VM_IP }}
+          username: cc
+          key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          script: |
+            cd /home/cc/photoprism-proj03/Data
+            dvc repro build_manifests
+            dvc push
+
   trigger-training:
     name: Trigger Training Jobs
     runs-on: ubuntu-latest
+    needs: build-manifest
     outputs:
       semantic_job_id: ${{ steps.semantic.outputs.job_id }}
       aesthetic_job_id: ${{ steps.aesthetic.outputs.job_id }}
