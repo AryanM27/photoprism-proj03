@@ -8,11 +8,11 @@ on:
       semantic_path:
         description: "S3 key for new semantic training_summary.txt"
         required: true
-        default: "artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt"
+        default: "artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt"
       aesthetic_path:
         description: "S3 key for new aesthetic training_summary.txt"
         required: true
-        default: "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v3/training_summary.txt"
+        default: "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt"
       trigger_reason:
         description: "Reason for retraining (drift | scheduled | manual)"
         required: false
@@ -143,9 +143,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           SEMANTIC_PATH="${{ github.event.inputs.semantic_path }}"
-          SEMANTIC_PATH="${SEMANTIC_PATH:-artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt}"
+          SEMANTIC_PATH="${SEMANTIC_PATH:-artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt}"
           AESTHETIC_PATH="${{ github.event.inputs.aesthetic_path }}"
-          AESTHETIC_PATH="${AESTHETIC_PATH:-artifacts/aesthetic/mobilenet_v3_large_fusion_real_v3/training_summary.txt}"
+          AESTHETIC_PATH="${AESTHETIC_PATH:-artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt}"
           python Serving/scripts/promote_model.py \
             --semantic-path "$SEMANTIC_PATH" \
             --aesthetic-path "$AESTHETIC_PATH"
