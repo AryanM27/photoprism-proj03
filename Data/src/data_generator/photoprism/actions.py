@@ -1,10 +1,12 @@
 import logging
 import random
+from pathlib import Path
 
 import requests
 
 from .augment import augment_image
 from .client import PhotoprismClient
+from .pipeline_bridge import register_upload
 from .queries import random_query
 from .s3_source import S3ImageSource
 from .state import SimState
@@ -13,10 +15,12 @@ logger = logging.getLogger(__name__)
 
 # Action weights — must sum to 1.0
 ACTION_WEIGHTS = {
-    "search": 0.35,
-    "browse": 0.35,
+    "search": 0.25,
+    "browse": 0.25,
     "upload": 0.15,
     "favorite": 0.15,
+    "semantic_search": 0.10,
+    "click": 0.10,
 }
 
 
@@ -35,6 +39,19 @@ def do_search(client: PhotoprismClient, state: SimState) -> None:
     uids = [p["UID"] for p in photos if "UID" in p]
     state.add_photos(uids)
     state.searches_done += 1
+
+
+def do_semantic_search(client: PhotoprismClient, state: SimState) -> None:
+    query = random_query()
+    logger.debug("[%s] semantic_search: %s", state.user_id, query)
+    try:
+        results = client.search_semantic(query, count=random.randint(5, 20))
+        for r in results:
+            r["_query"] = query
+        state.add_semantic_ids(results)
+        state.searches_done += 1
+    except requests.RequestException as exc:
+        logger.warning("[%s] semantic search failed: %s", state.user_id, exc)
 
 
 def _browse_album_safe(client: PhotoprismClient, state: SimState, album_uid: str, count: int) -> list[dict]:
@@ -85,11 +102,16 @@ def do_upload(
     try:
         raw_bytes, orig_name = s3_source.random_image()
         aug_bytes, aug_name = augment_image(raw_bytes)
+        aug_name = f"{Path(aug_name).stem}_datagen{Path(aug_name).suffix}"
         token = client.upload_photo(aug_bytes, aug_name)
         logger.debug(
             "[%s] uploaded %s (token=%s)", state.user_id, aug_name, token
         )
-        state.uploads_done += 1
+        image_id = register_upload(aug_bytes, aug_name)
+        if image_id:
+            state.uploads_done += 1
+        else:
+            logger.warning("[%s] upload indexed in Photoprism but not in ML pipeline", state.user_id)
     except (requests.RequestException, RuntimeError) as exc:
         logger.warning("[%s] upload failed: %s", state.user_id, exc)
 
@@ -107,9 +129,27 @@ def do_favorite(client: PhotoprismClient, state: SimState) -> None:
         logger.warning("[%s] like %s failed: %s", state.user_id, uid, exc)
 
 
+def do_click(client: PhotoprismClient, state: SimState) -> None:
+    result = state.random_semantic_result()
+    if not result:
+        logger.debug("[%s] click skipped — no semantic results seen", state.user_id)
+        return
+    try:
+        client.click_photo_semantic(
+            image_id=result.get("id", ""),
+            query=result.get("_query", ""),
+            score=result.get("score", 0.0),
+        )
+        logger.debug("[%s] clicked %s", state.user_id, result.get("id"))
+    except requests.RequestException as exc:
+        logger.warning("[%s] click failed: %s", state.user_id, exc)
+
+
 ACTION_FNS = {
     "search": do_search,
     "browse": do_browse,
     "upload": do_upload,
     "favorite": do_favorite,
+    "semantic_search": do_semantic_search,
+    "click": do_click,
 }

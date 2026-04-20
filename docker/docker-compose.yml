@@ -260,6 +260,9 @@ services:
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: prometheus
+    user: "nobody"
+    group_add:
+      - "988"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -270,6 +273,7 @@ services:
       - ../Data/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ../Data/docker/alerts:/etc/prometheus/alerts:ro
       - /mnt/block/prometheus:/prometheus
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   grafana:
@@ -332,7 +336,10 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       MEAN_THINK_SECONDS: ${MEAN_THINK_SECONDS:-2.0}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
     depends_on:
       photoprism:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped

@@ -44,5 +44,15 @@ scrape_configs:
 
   - job_name: serving-api
     metrics_path: /metrics
-    static_configs:
-      - targets: ["serving-api:8000"]
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: label
+            values: ["com.docker.compose.service=serving-api"]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "(.+):.*"
+        target_label: __address__
+        replacement: "$1:8000"
+      - source_labels: [__meta_docker_container_name]
+        target_label: instance

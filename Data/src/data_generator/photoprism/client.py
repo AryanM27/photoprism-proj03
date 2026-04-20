@@ -63,6 +63,22 @@ class PhotoprismClient:
         resp.raise_for_status()
         return upload_token
 
+    def search_semantic(self, query: str, count: int = 20) -> list[dict]:
+        url = f"{self._base_url}/api/v1/photos/semantic"
+        params = {"q": query, "count": count}
+        resp = self._session.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        return resp.json() or []
+
+    def click_photo_semantic(self, image_id: str, query: str, score: float) -> None:
+        url = f"{self._base_url}/api/v1/semantic/click"
+        resp = self._session.post(
+            url,
+            json={"image_id": image_id, "query": query, "score": score},
+            timeout=30,
+        )
+        resp.raise_for_status()
+
     def like_photo(self, uid: str) -> None:
         url = f"{self._base_url}/api/v1/photos/{uid}/like"
         resp = self._session.post(url, timeout=30)
