@@ -6,11 +6,11 @@ on:
       semantic_path:
         description: "S3 key for semantic training_summary.txt"
         required: false
-        default: "artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt"
+        default: "artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt"
       aesthetic_path:
         description: "S3 key for aesthetic training_summary.txt"
         required: false
-        default: "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v2/training_summary.txt"
+        default: "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt"
       force_promote:
         description: "Skip metric gate and force promotion (true/false)"
         required: false
