@@ -54,7 +54,9 @@ jobs:
               \"task\": \"semantic\",
               \"base_config_path\": \"configs/semantic/openclip_enhanced_real_v2.yaml\",
               \"trigger_reason\": \"${TRIGGER_REASON}\",
-              \"run_test_after_training\": true
+              \"run_test_after_training\": true,
+              \"max_records\": 250,
+              \"evaluation_max_records\": 50
             }")
           echo "Response: $RESPONSE"
           JOB_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
@@ -71,7 +73,9 @@ jobs:
               \"task\": \"aesthetic\",
               \"base_config_path\": \"configs/aesthetic/mobilenet_v3_large_fusion_real_v3.yaml\",
               \"trigger_reason\": \"${TRIGGER_REASON}\",
-              \"run_test_after_training\": true
+              \"run_test_after_training\": true,
+              \"max_records\": 250,
+              \"evaluation_max_records\": 50
             }")
           echo "Response: $RESPONSE"
           JOB_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
