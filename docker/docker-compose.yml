@@ -218,6 +218,8 @@ services:
       S3_BUCKET: ${S3_BUCKET:-training-module-proj03}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-AryanM27/photoprism-proj03}
     volumes:
       - ../Serving/checkpoints:/checkpoints
     depends_on:

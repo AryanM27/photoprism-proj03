@@ -24,6 +24,7 @@ import tempfile
 from pathlib import Path
 
 import boto3
+from botocore.config import Config
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -151,6 +152,7 @@ def main():
         endpoint_url=s3_cfg["endpoint_url"],
         aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
         aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+        config=Config(signature_version="s3v4"),
     )
 
     try:
