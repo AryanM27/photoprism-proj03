@@ -313,6 +313,7 @@ services:
       PHOTOPRISM_SEMANTIC_ENABLED: ${PHOTOPRISM_SEMANTIC_ENABLED:-false}
       PHOTOPRISM_SEMANTIC_URI: ${PHOTOPRISM_SEMANTIC_URI:-http://serving-api:8000}
       PHOTOPRISM_SEMANTIC_RERANK: ${PHOTOPRISM_SEMANTIC_RERANK:-false}
+      PHOTOPRISM_REVIEW_PHOTOS: "false"
     volumes:
       - /mnt/block/photoprism/originals:/photoprism/originals
       - /mnt/block/photoprism/storage:/photoprism/storage
