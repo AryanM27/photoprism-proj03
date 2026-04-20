@@ -30,6 +30,7 @@ jobs:
           key: ${{ secrets.CHAMELEON_SSH_KEY }}
           passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
           script: |
+            source /mnt/block/.venv/bin/activate
             cd /home/cc/photoprism-proj03/Data
             dvc repro build_manifests
             dvc push
