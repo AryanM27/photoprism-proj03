@@ -1,0 +1,17 @@
+semantic:
+  metric: recall_at_1
+  min_improvement: 0.02        # new model must beat current by at least 2%
+  absolute_minimum: 0.35       # must be above this regardless
+
+aesthetic:
+  metric: mae
+  min_improvement: 0.02        # MAE must drop by at least 0.02 (lower is better)
+  absolute_maximum: 0.60       # MAE must stay below this regardless
+
+s3:
+  bucket: training-module-proj03
+  endpoint_url: https://chi.tacc.chameleoncloud.org:7480
+
+canary:
+  bake_time_seconds: 600       # monitor for 10 minutes before full promote
+  error_rate_threshold: 0.05   # rollback if error rate exceeds 5%

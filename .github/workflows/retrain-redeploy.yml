@@ -1,0 +1,178 @@
+name: Retrain and Redeploy
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"   # every Sunday at 2am UTC
+  workflow_dispatch:
+    inputs:
+      semantic_path:
+        description: "S3 key for new semantic training_summary.txt"
+        required: true
+        default: "artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt"
+      aesthetic_path:
+        description: "S3 key for new aesthetic training_summary.txt"
+        required: true
+        default: "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v2/training_summary.txt"
+      trigger_reason:
+        description: "Reason for retraining (drift | scheduled | manual)"
+        required: false
+        default: "manual"
+
+jobs:
+  trigger-training:
+    name: Trigger Training Jobs
+    runs-on: ubuntu-latest
+    outputs:
+      semantic_job_id: ${{ steps.semantic.outputs.job_id }}
+      aesthetic_job_id: ${{ steps.aesthetic.outputs.job_id }}
+    steps:
+      - name: Trigger semantic training
+        id: semantic
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.TRAINING_API_URL }}/train" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "task": "semantic",
+              "base_config_path": "configs/semantic/openclip_enhanced_real_v2.yaml",
+              "trigger_reason": "${{ github.event.inputs.trigger_reason || 'scheduled' }}",
+              "run_test_after_training": true
+            }')
+          echo "Response: $RESPONSE"
+          JOB_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
+          echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+
+      - name: Trigger aesthetic training
+        id: aesthetic
+        run: |
+          RESPONSE=$(curl -s -X POST "${{ secrets.TRAINING_API_URL }}/train" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "task": "aesthetic",
+              "base_config_path": "configs/aesthetic/mobilenet_v3_large_fusion.yaml",
+              "trigger_reason": "${{ github.event.inputs.trigger_reason || 'scheduled' }}",
+              "run_test_after_training": true
+            }')
+          echo "Response: $RESPONSE"
+          JOB_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
+          echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+
+  wait-for-training:
+    name: Wait for Training to Complete
+    runs-on: ubuntu-latest
+    needs: trigger-training
+    steps:
+      - name: Poll semantic job status
+        run: |
+          JOB_ID="${{ needs.trigger-training.outputs.semantic_job_id }}"
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s "${{ secrets.TRAINING_API_URL }}/train/status/$JOB_ID" | \
+              python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+            echo "Semantic job status: $STATUS"
+            if [ "$STATUS" = "completed" ]; then exit 0; fi
+            if [ "$STATUS" = "failed" ]; then echo "Semantic training failed"; exit 1; fi
+            sleep 60
+          done
+          echo "Timeout waiting for semantic training"
+          exit 1
+
+      - name: Poll aesthetic job status
+        run: |
+          JOB_ID="${{ needs.trigger-training.outputs.aesthetic_job_id }}"
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s "${{ secrets.TRAINING_API_URL }}/train/status/$JOB_ID" | \
+              python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+            echo "Aesthetic job status: $STATUS"
+            if [ "$STATUS" = "completed" ]; then exit 0; fi
+            if [ "$STATUS" = "failed" ]; then echo "Aesthetic training failed"; exit 1; fi
+            sleep 60
+          done
+          echo "Timeout waiting for aesthetic training"
+          exit 1
+
+  promote-and-deploy:
+    name: Promote Model and Redeploy
+    runs-on: ubuntu-latest
+    needs: wait-for-training
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install boto3 pyyaml
+
+      - name: Run promotion check
+        id: promote
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          python Serving/scripts/promote_model.py \
+            --semantic-path "${{ github.event.inputs.semantic_path || 'artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt' }}" \
+            --aesthetic-path "${{ github.event.inputs.aesthetic_path || 'artifacts/aesthetic/mobilenet_v3_large_fusion_real_v2/training_summary.txt' }}"
+        continue-on-error: true
+
+      - name: Check promotion result
+        run: |
+          if [ "${{ steps.promote.outcome }}" = "failure" ]; then
+            echo "Promotion rejected — keeping current production model. No redeployment."
+            exit 0
+          fi
+          echo "Promotion approved — proceeding with redeployment."
+
+      - name: Commit updated current_production.yaml
+        if: steps.promote.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Serving/config/current_production.yaml
+          git diff --staged --quiet || git commit -m "chore: promote new model to production [skip ci]"
+          git push
+
+      - name: Deploy to Chameleon VM
+        if: steps.promote.outcome == 'success'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CHAMELEON_VM_IP }}
+          username: cc
+          key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          script: |
+            cd /home/cc/photoprism-proj03/docker
+            git pull
+            docker compose up -d --scale serving-api=3
+            echo "Redeployment complete"
+
+      - name: Monitor after deploy (canary window)
+        if: steps.promote.outcome == 'success'
+        run: |
+          echo "Monitoring for 10 minutes..."
+          sleep 600
+          ERROR_RATE=$(curl -s "${{ secrets.PROMETHEUS_URL }}/api/v1/query" \
+            --data-urlencode 'query=sum(rate(inference_search_total{result="error"}[5m])) / sum(rate(inference_search_total[5m]))' \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else '0')")
+          echo "Error rate after deploy: $ERROR_RATE"
+          python3 -c "
+          rate = float('$ERROR_RATE' or 0)
+          if rate > 0.05:
+              print(f'ERROR RATE {rate:.2%} EXCEEDS 5% THRESHOLD — ROLLBACK NEEDED')
+              exit(1)
+          print(f'Error rate {rate:.2%} is within threshold. Deploy stable.')
+          "
+
+      - name: Rollback on high error rate
+        if: failure() && steps.promote.outcome == 'success'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CHAMELEON_VM_IP }}
+          username: cc
+          key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          script: |
+            cd /home/cc/photoprism-proj03/docker
+            git revert HEAD --no-edit
+            git push
+            docker compose up -d --scale serving-api=3
+            echo "Rollback complete"
