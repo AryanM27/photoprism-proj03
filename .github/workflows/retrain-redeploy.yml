@@ -5,10 +5,6 @@ on:
     - cron: "0 2 1 * *"   # 1st of every month at 2am UTC
   workflow_dispatch:
     inputs:
-      semantic_path:
-        description: "S3 key for new semantic training_summary.txt"
-        required: true
-        default: "artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt"
       aesthetic_path:
         description: "S3 key for new aesthetic training_summary.txt"
         required: true
@@ -38,48 +34,12 @@ jobs:
             dvc push
 
   run-training:
-    name: Run Training Jobs (Sequential)
+    name: Run Aesthetic Training
     runs-on: ubuntu-latest
     needs: build-manifest
     outputs:
-      semantic_succeeded: ${{ steps.set_outcomes.outputs.semantic_succeeded }}
       aesthetic_succeeded: ${{ steps.set_outcomes.outputs.aesthetic_succeeded }}
     steps:
-      - name: Trigger semantic training
-        id: trigger_semantic
-        run: |
-          TRIGGER_REASON="${{ github.event.inputs.trigger_reason }}"
-          TRIGGER_REASON="${TRIGGER_REASON:-scheduled}"
-          RESPONSE=$(curl -s -X POST "${{ secrets.TRAINING_API_URL }}/train" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"task\": \"semantic\",
-              \"base_config_path\": \"configs/semantic/openclip_enhanced_real_v2.yaml\",
-              \"trigger_reason\": \"${TRIGGER_REASON}\",
-              \"run_test_after_training\": true,
-              \"max_records\": 250,
-              \"evaluation_max_records\": 50
-            }")
-          echo "Response: $RESPONSE"
-          JOB_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
-          echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
-
-      - name: Wait for semantic training
-        id: wait_semantic
-        continue-on-error: true
-        run: |
-          JOB_ID="${{ steps.trigger_semantic.outputs.job_id }}"
-          for i in $(seq 1 180); do
-            STATUS=$(curl -s "${{ secrets.TRAINING_API_URL }}/train/status/$JOB_ID" | \
-              python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
-            echo "[$i/180] Semantic job status: $STATUS"
-            if [ "$STATUS" = "completed" ]; then exit 0; fi
-            if [ "$STATUS" = "failed" ]; then echo "Semantic training failed"; exit 1; fi
-            sleep 60
-          done
-          echo "Timeout waiting for semantic training (3 hours exceeded)"
-          exit 1
-
       - name: Trigger aesthetic training
         id: trigger_aesthetic
         run: |
@@ -119,17 +79,15 @@ jobs:
         id: set_outcomes
         if: always()
         run: |
-          SEM="${{ steps.wait_semantic.outcome }}"
           AES="${{ steps.wait_aesthetic.outcome }}"
-          echo "Semantic: $SEM | Aesthetic: $AES"
-          [ "$SEM" = "success" ] && echo "semantic_succeeded=true" >> $GITHUB_OUTPUT || echo "semantic_succeeded=false" >> $GITHUB_OUTPUT
+          echo "Aesthetic: $AES"
           [ "$AES" = "success" ] && echo "aesthetic_succeeded=true" >> $GITHUB_OUTPUT || echo "aesthetic_succeeded=false" >> $GITHUB_OUTPUT
 
   promote-and-deploy:
     name: Promote Model and Redeploy
     runs-on: ubuntu-latest
     needs: run-training
-    if: always() && (needs.run-training.outputs.semantic_succeeded == 'true' || needs.run-training.outputs.aesthetic_succeeded == 'true')
+    if: always() && needs.run-training.outputs.aesthetic_succeeded == 'true'
     permissions:
       contents: write
       issues: write
@@ -146,20 +104,6 @@ jobs:
 
       - name: Install dependencies
         run: pip install boto3 pyyaml
-
-      - name: Promote semantic model
-        id: promote_semantic
-        if: needs.run-training.outputs.semantic_succeeded == 'true'
-        continue-on-error: true
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: |
-          SEMANTIC_PATH="${{ github.event.inputs.semantic_path }}"
-          SEMANTIC_PATH="${SEMANTIC_PATH:-artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt}"
-          python Serving/scripts/promote_model.py \
-            --semantic-path "$SEMANTIC_PATH" \
-            --semantic-only
 
       - name: Promote aesthetic model
         id: promote_aesthetic
@@ -178,13 +122,12 @@ jobs:
       - name: Check promotion result
         id: promote
         run: |
-          SEM="${{ steps.promote_semantic.outcome }}"
           AES="${{ steps.promote_aesthetic.outcome }}"
-          echo "Semantic promotion: $SEM | Aesthetic promotion: $AES"
-          if [ "$SEM" = "success" ] || [ "$AES" = "success" ]; then
-            echo "At least one model promoted — proceeding with redeployment."
+          echo "Aesthetic promotion: $AES"
+          if [ "$AES" = "success" ]; then
+            echo "Aesthetic model promoted — proceeding with redeployment."
           else
-            echo "No models promoted — keeping current production. No redeployment."
+            echo "Aesthetic model not promoted — keeping current production. No redeployment."
             exit 1
           fi
 
@@ -229,21 +172,7 @@ jobs:
             source /mnt/block/.venv/bin/activate
             cd Data
 
-            SEMANTIC_PROMOTED="${{ steps.promote_semantic.outcome }}"
             AESTHETIC_PROMOTED="${{ steps.promote_aesthetic.outcome }}"
-
-            if [ "$SEMANTIC_PROMOTED" = "success" ]; then
-              SEMANTIC_VERSION=$(python3 -c "import yaml; d=yaml.safe_load(open('../Serving/config/current_production.yaml')); print(d.get('semantic',{}).get('model_version','clip-ViT-B-32'))")
-              echo "Triggering full re-embedding backfill for semantic model: $SEMANTIC_VERSION"
-              python3 -c "
-            from src.data_pipeline.db.session import SessionLocal
-            from src.data_pipeline.backfill.pipeline import trigger_backfill
-            db = SessionLocal()
-            jobs = trigger_backfill(db, model_version='${SEMANTIC_VERSION}', reembed=True)
-            db.close()
-            print(f'Semantic backfill queued for {len(jobs)} images')
-            "
-            fi
 
             if [ "$AESTHETIC_PROMOTED" = "success" ]; then
               AESTHETIC_VERSION=$(python3 -c "import yaml; d=yaml.safe_load(open('../Serving/config/current_production.yaml')); print(d.get('aesthetic',{}).get('model_version','mobilenet_v3_large_fusion'))")
