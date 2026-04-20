@@ -12,7 +12,7 @@ on:
       aesthetic_path:
         description: "S3 key for new aesthetic training_summary.txt"
         required: true
-        default: "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v2/training_summary.txt"
+        default: "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v3/training_summary.txt"
       trigger_reason:
         description: "Reason for retraining (drift | scheduled | manual)"
         required: false
@@ -145,7 +145,7 @@ jobs:
           SEMANTIC_PATH="${{ github.event.inputs.semantic_path }}"
           SEMANTIC_PATH="${SEMANTIC_PATH:-artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt}"
           AESTHETIC_PATH="${{ github.event.inputs.aesthetic_path }}"
-          AESTHETIC_PATH="${AESTHETIC_PATH:-artifacts/aesthetic/mobilenet_v3_large_fusion_real_v2/training_summary.txt}"
+          AESTHETIC_PATH="${AESTHETIC_PATH:-artifacts/aesthetic/mobilenet_v3_large_fusion_real_v3/training_summary.txt}"
           python Serving/scripts/promote_model.py \
             --semantic-path "$SEMANTIC_PATH" \
             --aesthetic-path "$AESTHETIC_PATH"
@@ -177,9 +177,9 @@ jobs:
           key: ${{ secrets.CHAMELEON_SSH_KEY }}
           passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
           script: |
-            cd /home/cc/photoprism-proj03/docker
+            cd /home/cc/photoprism-proj03
             git pull
-            docker compose up -d --scale serving-api=3
+            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 serving-api nginx
             echo "Redeployment complete"
 
       - name: Monitor after deploy (canary window)
@@ -208,8 +208,8 @@ jobs:
           key: ${{ secrets.CHAMELEON_SSH_KEY }}
           passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
           script: |
-            cd /home/cc/photoprism-proj03/docker
+            cd /home/cc/photoprism-proj03
             git revert HEAD --no-edit
             git push
-            docker compose up -d --scale serving-api=3
+            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 serving-api nginx
             echo "Rollback complete"

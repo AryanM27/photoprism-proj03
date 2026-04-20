@@ -36,7 +36,7 @@ def _trigger_github_workflow(trigger_reason: str = "drift") -> bool:
         "inputs": {
             "trigger_reason": trigger_reason,
             "semantic_path": "artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt",
-            "aesthetic_path": "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v2/training_summary.txt",
+            "aesthetic_path": "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v3/training_summary.txt",
         },
     }
 
