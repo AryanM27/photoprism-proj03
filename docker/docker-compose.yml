@@ -332,7 +332,10 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       MEAN_THINK_SECONDS: ${MEAN_THINK_SECONDS:-2.0}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
     depends_on:
       photoprism:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped

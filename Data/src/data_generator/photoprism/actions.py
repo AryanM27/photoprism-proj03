@@ -1,10 +1,12 @@
 import logging
 import random
+from pathlib import Path
 
 import requests
 
 from .augment import augment_image
 from .client import PhotoprismClient
+from .pipeline_bridge import register_upload
 from .queries import random_query
 from .s3_source import S3ImageSource
 from .state import SimState
@@ -85,11 +87,16 @@ def do_upload(
     try:
         raw_bytes, orig_name = s3_source.random_image()
         aug_bytes, aug_name = augment_image(raw_bytes)
+        aug_name = f"{Path(aug_name).stem}_datagen{Path(aug_name).suffix}"
         token = client.upload_photo(aug_bytes, aug_name)
         logger.debug(
             "[%s] uploaded %s (token=%s)", state.user_id, aug_name, token
         )
-        state.uploads_done += 1
+        image_id = register_upload(aug_bytes, aug_name)
+        if image_id:
+            state.uploads_done += 1
+        else:
+            logger.warning("[%s] upload indexed in Photoprism but not in ML pipeline", state.user_id)
     except (requests.RequestException, RuntimeError) as exc:
         logger.warning("[%s] upload failed: %s", state.user_id, exc)
 

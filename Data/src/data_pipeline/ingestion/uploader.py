@@ -55,19 +55,23 @@ def upload_image(event: dict, db: Session) -> dict:
         dict with image_id, storage_path, image_uri
     """
     image_id = event["image_id"]
-    file_path = Path(event["file_path"])
-    source_dataset = event["source_dataset"]
+    source_dataset = event.get("source_dataset", "unknown")
     split = event["split"]
 
-    ext = file_path.suffix.lower()
-    storage_key = f"{S3_PREFIX}/raw/{image_id}{ext}"
-    image_uri = f"swift://{BUCKET}/{storage_key}"
-
-    # Upload to MinIO
-    s3 = _s3_client()
-    with open(file_path, "rb") as f:
-        s3.upload_fileobj(f, BUCKET, storage_key)
-    logger.info(f"Uploaded {file_path.name} → {image_uri}")
+    pre_uploaded_key = event.get("storage_key", "")
+    if pre_uploaded_key:
+        storage_key = pre_uploaded_key
+        image_uri = f"swift://{BUCKET}/{storage_key}"
+        logger.info(f"[ingestion] Using pre-uploaded S3 key: {storage_key}")
+    else:
+        file_path = Path(event["file_path"])
+        ext = file_path.suffix.lower()
+        storage_key = f"{S3_PREFIX}/raw/{image_id}{ext}"
+        image_uri = f"swift://{BUCKET}/{storage_key}"
+        s3 = _s3_client()
+        with open(file_path, "rb") as f:
+            s3.upload_fileobj(f, BUCKET, storage_key)
+        logger.info(f"Uploaded {file_path.name} → {image_uri}")
 
     # Insert into images table (idempotent)
     # NOTE: S3 upload is non-atomic with Postgres insert. On retry, S3 key is

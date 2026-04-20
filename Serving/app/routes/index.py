@@ -1,4 +1,6 @@
 import io
+from typing import Optional
+
 from fastapi import APIRouter, Request, UploadFile, File, Form
 from pydantic import BaseModel
 
@@ -19,7 +21,8 @@ async def index_photo(
     request: Request,
     image_id: str = Form(...),
     file: UploadFile = File(...),
-):
+    storage_path: Optional[str] = Form(None),
+) -> IndexResponse:
     embedder = request.app.state.embedder
     client = get_client()
 
@@ -28,12 +31,16 @@ async def index_photo(
 
     embedding = embedder.embed_image(image)
 
+    payload: dict = {"filename": file.filename}
+    if storage_path:
+        payload["storage_path"] = storage_path
+
     qdrant.ensure_collection(client)
     qdrant.upsert_photo(
         client=client,
         image_id=image_id,
         embedding=embedding,
-        payload={"filename": file.filename},
+        payload=payload,
     )
 
     return {"image_id": image_id, "status": "indexed"}
