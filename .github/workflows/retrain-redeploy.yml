@@ -69,7 +69,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"task\": \"aesthetic\",
-              \"base_config_path\": \"configs/aesthetic/mobilenet_v3_large_fusion.yaml\",
+              \"base_config_path\": \"configs/aesthetic/mobilenet_v3_large_fusion_real_v3.yaml\",
               \"trigger_reason\": \"${TRIGGER_REASON}\",
               \"run_test_after_training\": true
             }")
