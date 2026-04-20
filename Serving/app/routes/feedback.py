@@ -58,7 +58,7 @@ def _insert_feedback(image_id: str, query: str, score: float, clicked: bool, fav
 
 @router.post("/feedback/like")
 def like_image(req: FeedbackRequest):
-    _insert_feedback(req.image_id, req.query, req.score, clicked=True, favorited=True)
+    _insert_feedback(req.image_id, req.query, req.score, clicked=False, favorited=True)
     logger.info("Recorded like for image %s", req.image_id)
     return {"liked": True, "image_id": req.image_id}
 

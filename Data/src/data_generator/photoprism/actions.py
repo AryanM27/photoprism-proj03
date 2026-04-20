@@ -116,16 +116,20 @@ def do_upload(
 
 
 def do_favorite(client: PhotoprismClient, state: SimState) -> None:
-    uid = state.random_seen_photo()
-    if not uid:
-        logger.debug("[%s] favorite skipped — no seen photos", state.user_id)
+    result = state.random_semantic_result()
+    if not result:
+        logger.debug("[%s] favorite skipped — no semantic results seen", state.user_id)
         return
     try:
-        client.like_photo(uid)
-        logger.debug("[%s] liked %s", state.user_id, uid)
+        client.like_photo_semantic(
+            image_id=result.get("id", ""),
+            query=result.get("_query", ""),
+            score=result.get("score", 0.0),
+        )
+        logger.debug("[%s] liked semantic result %s", state.user_id, result.get("id"))
         state.likes_done += 1
     except requests.RequestException as exc:
-        logger.warning("[%s] like %s failed: %s", state.user_id, uid, exc)
+        logger.warning("[%s] semantic like failed: %s", state.user_id, exc)
 
 
 def do_click(client: PhotoprismClient, state: SimState) -> None:

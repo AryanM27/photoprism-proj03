@@ -84,6 +84,15 @@ class PhotoprismClient:
         resp = self._session.post(url, timeout=30)
         resp.raise_for_status()
 
+    def like_photo_semantic(self, image_id: str, query: str, score: float) -> None:
+        url = f"{self._base_url}/api/v1/semantic/like"
+        resp = self._session.post(
+            url,
+            json={"image_id": image_id, "query": query, "score": score},
+            timeout=30,
+        )
+        resp.raise_for_status()
+
     def unlike_photo(self, uid: str) -> None:
         url = f"{self._base_url}/api/v1/photos/{uid}/like"
         resp = self._session.delete(url, timeout=30)
