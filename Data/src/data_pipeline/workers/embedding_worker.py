@@ -66,7 +66,9 @@ def _resolve_checkpoint() -> str | None:
 def _get_encoder() -> CLIPEncoder:
     global _encoder
     if _encoder is None:
-        model = os.environ.get("EMBEDDING_MODEL", "clip-ViT-B-32")
+        # EMBEDDING_MODEL is a version label (e.g. semantic-openclip-enhanced-vit-b32-v2).
+        # CLIP_BASE_MODEL is the open_clip architecture to load (e.g. clip-ViT-B-32).
+        base_model = os.environ.get("CLIP_BASE_MODEL", "clip-ViT-B-32")
         ckpt_path = _resolve_checkpoint()
         if ckpt_path is None and os.environ.get("CHECKPOINT_PATH", "").strip():
             # CHECKPOINT_PATH was set but could not be resolved — refuse to cache
@@ -75,7 +77,7 @@ def _get_encoder() -> CLIPEncoder:
                 "CHECKPOINT_PATH is set but checkpoint could not be resolved. "
                 "Check S3 credentials and path. Refusing to embed with base weights."
             )
-        _encoder = CLIPEncoder(model_name=model, checkpoint_path=ckpt_path)
+        _encoder = CLIPEncoder(model_name=base_model, checkpoint_path=ckpt_path)
     return _encoder
 
 

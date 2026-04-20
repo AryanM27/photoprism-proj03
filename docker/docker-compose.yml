@@ -127,6 +127,7 @@ services:
       QDRANT_PORT: ${QDRANT_PORT:-6333}
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-photoprism_images}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
+      CLIP_BASE_MODEL: ${CLIP_BASE_MODEL:-clip-ViT-B-32}
       CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
     ports:
       - "8003:8003"

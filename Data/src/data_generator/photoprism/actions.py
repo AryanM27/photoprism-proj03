@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 # Action weights — must sum to 1.0
 ACTION_WEIGHTS = {
     "browse": 0.25,
-    "upload": 0.15,
+    "upload": 0.10,
     "favorite": 0.15,
     "semantic_search": 0.30,
-    "click": 0.15,
+    "click": 0.20,
 }
 
 
