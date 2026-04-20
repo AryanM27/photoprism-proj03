@@ -40,6 +40,19 @@ groups:
           summary: "Zero search traffic for 10m — possible model failure or drift"
           description: "No /search requests recorded in the last 10 minutes. Check model health and Evidently drift reports."
 
+      - alert: MultiColumnDriftDetected
+        expr: |
+          count(
+            pg_manifest_drift_score_drift_detected == 1
+          ) by (manifest_kind) >= 2
+        for: 5m
+        labels:
+          severity: warning
+          action: retrain
+        annotations:
+          summary: "Evidently drift detected in {{ $labels.manifest_kind }} manifest across 2+ columns"
+          description: "{{ $value }} columns show drift in the latest manifest snapshot. Triggering retraining."
+
       - alert: SearchEndpointDown
         expr: |
           absent(http_requests_total{handler="/search"})

@@ -1,0 +1,11 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: serving-retrain-webhook
+    receivers:
+      - uid: serving-retrain-webhook
+        type: webhook
+        settings:
+          url: http://serving-api:8000/webhook/retrain
+          httpMethod: POST

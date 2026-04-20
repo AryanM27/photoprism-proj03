@@ -1,0 +1,9 @@
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: serving-retrain-webhook
+    matchers:
+      - label: action
+        match: =
+        value: retrain
