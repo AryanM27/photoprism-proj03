@@ -115,15 +115,24 @@ def _upsert_default_snapshot(db, version: str, manifest_path: str, record_count:
 
 def _insert_dated_snapshot(db, version: str, ts: str, prefix: str, record_count: int, manifest_type: str) -> None:
     dated_path = f"s3://{BUCKET}/{prefix}/"
-    db.add(DatasetSnapshot(
-        snapshot_id=str(uuid.uuid4()),
-        version_tag=version,
-        manifest_path=dated_path,
-        record_count=record_count,
-        split_strategy=SPLIT_STRATEGY,
-        manifest_type=manifest_type,
-        created_at=datetime.now(timezone.utc),
-    ))
+    existing = (
+        db.query(DatasetSnapshot)
+        .filter_by(version_tag=version, manifest_type=manifest_type, manifest_path=dated_path)
+        .first()
+    )
+    if existing:
+        existing.record_count = record_count
+        existing.created_at = datetime.now(timezone.utc)
+    else:
+        db.add(DatasetSnapshot(
+            snapshot_id=str(uuid.uuid4()),
+            version_tag=version,
+            manifest_path=dated_path,
+            record_count=record_count,
+            split_strategy=SPLIT_STRATEGY,
+            manifest_type=manifest_type,
+            created_at=datetime.now(timezone.utc),
+        ))
     db.commit()
     logger.info(f"Inserted dated snapshot: {version} — {dated_path} ({record_count} rows)")
 
