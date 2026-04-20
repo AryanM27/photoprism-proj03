@@ -2,13 +2,13 @@ semantic:
   model_version: semantic-openclip-enhanced-vit-b32-v2
   candidate_name: semantic_openclip_enhanced_real_v2
   recall_at_1: 0.35
-  recall_at_5: 0.60
+  recall_at_5: 0.6
   contrastive_loss: 0.09
   s3_artifact_path: artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt
 aesthetic:
   model_version: aesthetic-mobilenet-v3-large-fusion-v3
   candidate_name: aesthetic_mobilenet_v3_large_fusion_real_v3
-  mae: 0.60
-  mse: 0.50
-  rmse: 0.70
+  mae: 0.4760755491256714
+  mse: 0.43665295243263247
+  rmse: 0.6607972097645635
   s3_artifact_path: artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt
