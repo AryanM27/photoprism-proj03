@@ -73,7 +73,7 @@ def _run_user(
     while not _STOP:
         tick += 1
         action = pick_action()
-        logger.debug("[user %d tick %d] action=%s", user_index, tick, action)
+        logger.info("[user %d tick %d] action=%s", user_index, tick, action)
 
         fn = ACTION_FNS[action]
         try:
