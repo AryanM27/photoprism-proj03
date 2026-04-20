@@ -158,7 +158,7 @@ jobs:
             echo "Redeployment complete"
 
       - name: Trigger backfill for updated model
-        if: false  # disabled for now
+        if: steps.promote.outcome == 'success'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CHAMELEON_VM_IP }}
