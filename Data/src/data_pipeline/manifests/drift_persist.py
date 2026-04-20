@@ -174,13 +174,15 @@ def _persist_one_kind(db, s3, version_tag: str, ts: str, kind: str) -> None:
     col_metrics = _extract_column_metrics(drift_dict)
 
     for cm in col_metrics:
+        score = cm.get("drift_score")
+        detected = cm.get("drift_detected")
         db.add(DriftMetric(
             version_tag=version_tag,
             reference_version_tag=prev.version_tag,
             manifest_kind=kind,
             column_name=cm["column_name"],
-            drift_score=cm.get("drift_score"),
-            drift_detected=cm.get("drift_detected"),
+            drift_score=float(score) if score is not None else None,
+            drift_detected=bool(detected) if detected is not None else None,
             stattest_name=cm.get("stattest_name"),
         ))
     db.commit()
