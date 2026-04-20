@@ -5,6 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import text
 
 from app.services import feedback as fb
 
@@ -26,7 +27,7 @@ def like_image(req: LikeRequest):
     try:
         session = fb._Session()
         session.execute(
-            __import__("sqlalchemy").text("""
+            text("""
                 INSERT INTO feedback_events
                     (event_id, user_id, query_id, image_id, shown_rank,
                      clicked, favorited, semantic_score,
@@ -51,6 +52,7 @@ def like_image(req: LikeRequest):
         )
         session.commit()
         session.close()
+        logger.info("Recorded like for image %s", req.image_id)
     except Exception as exc:
         logger.error("Failed to record like for %s: %s", req.image_id, exc)
-        raise HTTPException(status_code=500, detail="failed to record like")
+        raise HTTPException(status_code=500, detail=str(exc))
