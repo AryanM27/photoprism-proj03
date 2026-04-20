@@ -55,12 +55,12 @@ class PhotoprismClient:
 
     def upload_photo(self, image_bytes: bytes, filename: str) -> str | None:
         upload_token = uuid4().hex
-        # Newer photoprism API (v2+): /api/v1/users/{uid}/upload/{token}
-        # Files are auto-indexed after upload — no separate import call needed.
         upload_url = f"{self._base_url}/api/v1/users/{self._user_uid}/upload/{upload_token}"
         files = {"files": (filename, image_bytes, "image/jpeg")}
         resp = self._session.post(upload_url, files=files, timeout=60)
         resp.raise_for_status()
+        import_url = f"{self._base_url}/api/v1/users/{self._user_uid}/upload/{upload_token}/import"
+        self._session.post(import_url, json={}, timeout=60)
         return upload_token
 
     def search_semantic(self, query: str, count: int = 20) -> list[dict]:
