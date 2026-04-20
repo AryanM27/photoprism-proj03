@@ -141,6 +141,8 @@ def main():
                         help="S3 key for new aesthetic training_summary.txt")
     parser.add_argument("--dry-run", action="store_true",
                         help="Check metrics but do not update current_production.yaml")
+    parser.add_argument("--force", action="store_true",
+                        help="Skip metric gate and force promotion regardless of scores")
     args = parser.parse_args()
 
     promotion_cfg = load_yaml(PROMOTION_CONFIG_PATH)
@@ -167,6 +169,13 @@ def main():
 
     print(f"\nSemantic:  {'PASS' if sem_ok else 'FAIL'} — {sem_msg}")
     print(f"Aesthetic: {'PASS' if aes_ok else 'FAIL'} — {aes_msg}")
+
+    if args.force:
+        print("\nForce flag set — skipping metric gate. Promoting to production.")
+        if not args.dry_run:
+            update_production_yaml(current, new_semantic, new_aesthetic,
+                                   args.semantic_path, args.aesthetic_path)
+        sys.exit(0)
 
     if sem_ok and aes_ok:
         print("\nBoth models passed. Promoting to production.")

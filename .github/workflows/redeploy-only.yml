@@ -1,0 +1,119 @@
+name: Redeploy Only (Test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      semantic_path:
+        description: "S3 key for semantic training_summary.txt"
+        required: false
+        default: "artifacts/semantic/openclip_enhanced_real_v2/training_summary.txt"
+      aesthetic_path:
+        description: "S3 key for aesthetic training_summary.txt"
+        required: false
+        default: "artifacts/aesthetic/mobilenet_v3_large_fusion_real_v2/training_summary.txt"
+      force_promote:
+        description: "Skip metric gate and force promotion (true/false)"
+        required: false
+        default: "false"
+
+jobs:
+  promote-and-deploy:
+    name: Promote Model and Redeploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install boto3 pyyaml
+
+      - name: Run promotion check
+        id: promote
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          FORCE="${{ github.event.inputs.force_promote }}"
+          SEMANTIC_PATH="${{ github.event.inputs.semantic_path }}"
+          AESTHETIC_PATH="${{ github.event.inputs.aesthetic_path }}"
+          if [ "$FORCE" = "true" ]; then
+            python Serving/scripts/promote_model.py \
+              --semantic-path "$SEMANTIC_PATH" \
+              --aesthetic-path "$AESTHETIC_PATH" \
+              --force
+          else
+            python Serving/scripts/promote_model.py \
+              --semantic-path "$SEMANTIC_PATH" \
+              --aesthetic-path "$AESTHETIC_PATH"
+          fi
+        continue-on-error: true
+
+      - name: Check promotion result
+        run: |
+          if [ "${{ steps.promote.outcome }}" = "failure" ]; then
+            echo "Promotion rejected — keeping current production model. No redeployment."
+            exit 0
+          fi
+          echo "Promotion approved — proceeding with redeployment."
+
+      - name: Commit updated current_production.yaml
+        if: steps.promote.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Serving/config/current_production.yaml
+          git diff --staged --quiet || git commit -m "chore: promote new model to production [skip ci]"
+          git push
+
+      - name: Deploy to Chameleon VM
+        if: steps.promote.outcome == 'success'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CHAMELEON_VM_IP }}
+          username: cc
+          key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          script: |
+            cd /home/cc/photoprism-proj03
+            git pull
+            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 serving-api nginx
+            echo "Redeployment complete"
+
+      - name: Monitor after deploy (canary window)
+        if: steps.promote.outcome == 'success'
+        run: |
+          echo "Monitoring for 10 minutes..."
+          sleep 600
+          ERROR_RATE=$(curl -s "${{ secrets.PROMETHEUS_URL }}/api/v1/query" \
+            --data-urlencode 'query=sum(rate(inference_search_total{result="error"}[5m])) / sum(rate(inference_search_total[5m]))' \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else '0')")
+          echo "Error rate after deploy: $ERROR_RATE"
+          python3 -c "
+          rate = float('${ERROR_RATE}' or 0)
+          if rate > 0.05:
+              print(f'ERROR RATE {rate:.2%} EXCEEDS 5% THRESHOLD — ROLLBACK NEEDED')
+              exit(1)
+          print(f'Error rate {rate:.2%} is within threshold. Deploy stable.')
+          "
+
+      - name: Rollback on high error rate
+        if: failure() && steps.promote.outcome == 'success'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CHAMELEON_VM_IP }}
+          username: cc
+          key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          script: |
+            cd /home/cc/photoprism-proj03
+            git revert HEAD --no-edit
+            git push
+            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 serving-api nginx
+            echo "Rollback complete"
