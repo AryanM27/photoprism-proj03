@@ -6,17 +6,39 @@ Consumes the backfill queue. For each image:
   2. Update the ProcessingJob status to done
 """
 import logging
+import os
 from datetime import datetime, timezone
+
+import requests
 
 from src.data_pipeline.workers.celery_app import app
 from src.data_pipeline.db.session import SessionLocal
 from src.data_pipeline.db.models import Image, ImageMetadata, ProcessingJob
+
+SERVING_API_URL = os.environ.get("SERVING_API_URL", "http://serving-api:8000")
 
 logger = logging.getLogger(__name__)
 
 from src.data_pipeline.observability.celery_signals import register_signals
 
 register_signals(worker_name="backfill", metrics_port=8004)
+
+
+def _fetch_aesthetic_score(image_uri: str) -> float | None:
+    """Call serving /score/aesthetic; return score in 0.0–1.0 range, or None on failure."""
+    try:
+        resp = requests.post(
+            f"{SERVING_API_URL}/score/aesthetic",
+            json={"s3_path": image_uri},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        score_1_to_10 = float(resp.json()["aesthetic_score"])
+        logger.info("Aesthetic score for %s: %.3f", image_uri, score_1_to_10)
+        return round(score_1_to_10 / 10.0, 4)
+    except Exception as exc:
+        logger.warning("Aesthetic scoring failed for %s: %s", image_uri, exc)
+        return None
 
 
 @app.task(
@@ -36,6 +58,10 @@ def reprocess_image(self, image_id: str, model_version: str, aesthetic_score: fl
             image.embedding_status = "pending"
             image.model_version = None
             image.embedded_at = None
+
+        # Auto-fetch aesthetic score for user uploads that don't have one yet
+        if aesthetic_score is None and image.source_dataset == "user" and image.image_uri:
+            aesthetic_score = _fetch_aesthetic_score(image.image_uri)
 
         if aesthetic_score is not None:
             image_metadata = db.query(ImageMetadata).filter_by(image_id=image_id).first()

@@ -8,6 +8,7 @@ For each event:
   4. Write to Postgres `image_metadata`
   5. Update `images.status` → validated / failed
   6. Update `processing_jobs.status` → done / failed
+  7. For user uploads: call serving /score/aesthetic and store the score
 
 Validation logic lives in:
     src.data_pipeline.validation.checks     (Task 9)
@@ -15,10 +16,16 @@ Validation logic lives in:
 """
 
 import logging
+import os
+
+import requests
 
 from src.data_pipeline.workers.celery_app import app
 from src.data_pipeline.db.session import SessionLocal
 from src.data_pipeline.db.models import Image, ProcessingJob
+
+SERVING_API_URL = os.environ.get("SERVING_API_URL", "http://serving-api:8000")
+AESTHETIC_MODEL_VERSION = os.environ.get("AESTHETIC_MODEL_VERSION", "mobilenet_v3_large_fusion")
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +74,10 @@ def process_validation_event(self, event: dict) -> dict:
         source_dataset = image.source_dataset if image else None
 
         metadata = extract_metadata(storage_path, image_id, source_dataset)
+
+        if source_dataset == "user" and image and image.image_uri:
+            _score_user_upload(image.image_uri, metadata)
+
         db.add(metadata)
         if image:
             image.status = "validated"
@@ -95,6 +106,29 @@ def process_validation_event(self, event: dict) -> dict:
         raise self.retry(exc=exc)
     finally:
         db.close()
+
+
+def _score_user_upload(image_uri: str, metadata) -> None:
+    """Call serving /score/aesthetic and write score onto metadata (in-place).
+
+    aesthetic_score in DB is stored 0.0–1.0; serving returns 1–10.
+    Failures are logged and silently ignored so validation still succeeds.
+    """
+    from datetime import datetime
+    try:
+        resp = requests.post(
+            f"{SERVING_API_URL}/score/aesthetic",
+            json={"s3_path": image_uri},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        score_1_to_10 = float(resp.json()["aesthetic_score"])
+        metadata.aesthetic_score = round(score_1_to_10 / 10.0, 4)
+        metadata.aesthetic_score_date = datetime.utcnow()
+        metadata.aesthetic_model_version = AESTHETIC_MODEL_VERSION
+        logger.info(f"[validation] aesthetic score for {image_uri}: {score_1_to_10:.3f}")
+    except Exception as exc:
+        logger.warning(f"[validation] aesthetic scoring failed for {image_uri}: {exc}")
 
 
 def _mark_failed(image_id: str, reason: str) -> None:

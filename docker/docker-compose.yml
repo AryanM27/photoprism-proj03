@@ -96,6 +96,8 @@ services:
       S3_PREFIX: data_arm9337
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      SERVING_API_URL: http://serving-api:8000
+      AESTHETIC_MODEL_VERSION: ${AESTHETIC_MODEL_VERSION:-mobilenet_v3_large_fusion}
     ports:
       - "8002:8002"
     depends_on:
@@ -159,6 +161,7 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
+      SERVING_API_URL: http://serving-api:8000
     ports:
       - "8004:8004"
     depends_on:
