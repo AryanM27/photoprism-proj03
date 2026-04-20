@@ -200,7 +200,9 @@ jobs:
           "
 
       - name: Rollback on high error rate
+        id: rollback
         if: failure() && steps.promote.outcome == 'success'
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CHAMELEON_VM_IP }}
@@ -213,3 +215,30 @@ jobs:
             git push
             docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 serving-api nginx
             echo "Rollback complete"
+
+      - name: Open GitHub Issue if rollback failed
+        if: steps.rollback.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --repo ${{ github.repository }} \
+            --title "URGENT: Automatic rollback failed — manual intervention needed" \
+            --body "## Rollback Failed
+
+          The canary check detected a high error rate after deployment, but the automatic rollback **failed** (VM may be unreachable).
+
+          **Immediate action required:**
+          1. Check VM status at \`${{ secrets.CHAMELEON_VM_IP }}\`
+          2. If VM is reachable, manually run the [Redeploy Only](../actions/workflows/redeploy-only.yml) workflow with:
+             - \`force_promote: true\`
+             - \`semantic_path: artifacts/semantic/openclip_enhanced_real_v1/training_summary.txt\`
+             - \`aesthetic_path: artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt\`
+          3. Or SSH into the VM and run:
+             \`\`\`
+             cd /home/cc/photoprism-proj03 && git revert HEAD --no-edit && git push
+             docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 serving-api nginx
+             \`\`\`
+
+          **Triggered by workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --label "critical"
