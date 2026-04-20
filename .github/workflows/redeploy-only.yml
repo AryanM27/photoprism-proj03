@@ -87,7 +87,7 @@ jobs:
           script: |
             cd /home/cc/photoprism-proj03
             git pull
-            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 serving-api nginx
+            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --force-recreate --scale serving-api=3 serving-api nginx
             echo "Redeployment complete"
 
       - name: Monitor after deploy (canary window)
