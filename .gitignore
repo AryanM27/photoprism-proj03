@@ -66,6 +66,7 @@ CLAUDE.md
 # Project-specific: keep out of version control
 Data/Context/
 Data/docs/
+Data/reports/
 
 #Local training artifcats
 Training/mlruns/
