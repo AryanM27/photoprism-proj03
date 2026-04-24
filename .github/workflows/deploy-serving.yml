@@ -1,0 +1,27 @@
+name: Deploy Serving
+
+on:
+  push:
+    paths:
+      - 'Serving/**'
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Redeploy Serving API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Chameleon VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CHAMELEON_VM_IP }}
+          username: cc
+          key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
+          script: |
+            cd /home/cc/photoprism-proj03
+            git pull
+            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 --no-recreate nginx
+            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --force-recreate --scale serving-api=3 serving-api
+            echo "Serving redeployed"
