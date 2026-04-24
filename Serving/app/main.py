@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="PhotoPrism Semantic Search", lifespan=lifespan)
+app = FastAPI(title="PhotoPrism Semantic Search", lifespan=lifespan)  # v1
 
 # Prometheus metrics at /metrics
 Instrumentator().instrument(app).expose(app)
