@@ -10,9 +10,16 @@ from src.common.config import load_config, deep_update
 from src.aesthetic.train import train_aesthetic_from_config
 from src.semantic.train import train_semantic_from_config
 
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import Response
+
 app = FastAPI(title="Training Trigger API")
 
 JOBS: Dict[str, Dict[str, Any]] = {}
+
+TRAINING_JOBS_TOTAL = Counter("training_jobs_total", "Total training jobs", ["task"])
+TRAINING_JOBS_FAILED = Counter("training_jobs_failed_total", "Failed jobs", ["task"])
+TRAINING_JOB_RUNNING = Gauge("training_job_running", "Training job running state")
 
 
 def _apply_request_overrides(base_config: dict, req: TrainRequest) -> dict:
@@ -73,6 +80,7 @@ def _apply_request_overrides(base_config: dict, req: TrainRequest) -> dict:
 
 def _run_job(job_id: str, req: TrainRequest):
     JOBS[job_id]["status"] = "running"
+    TRAINING_JOB_RUNNING.set(1)
     JOBS[job_id]["started_at"] = datetime.utcnow().isoformat()
 
     try:
@@ -91,12 +99,15 @@ def _run_job(job_id: str, req: TrainRequest):
     except Exception as e:
         JOBS[job_id]["status"] = "failed"
         JOBS[job_id]["error"] = str(e)
+        TRAINING_JOBS_FAILED.labels(task=req.task).inc()
     finally:
+        TRAINING_JOB_RUNNING.set(0)
         JOBS[job_id]["finished_at"] = datetime.utcnow().isoformat()
 
 
 @app.post("/train", response_model=TrainResponse)
 def trigger_train(req: TrainRequest):
+    TRAINING_JOBS_TOTAL.labels(task=req.task).inc()
     job_id = str(uuid4())
 
     JOBS[job_id] = {
@@ -128,3 +139,7 @@ def get_status(job_id: str):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

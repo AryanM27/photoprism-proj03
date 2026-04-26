@@ -32,6 +32,16 @@ services:
     ports:
       - "8080:8080"
 
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    
+    security_opt:
+      - seccomp=unconfined
+    
+    group_add:
+      - video
+
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       OS_AUTH_TYPE: ${OS_AUTH_TYPE}
@@ -73,6 +83,24 @@ services:
       --host 0.0.0.0
       --port 5000
       "
+
+  prometheus:
+    image: prom/prometheus
+    container_name: training-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - training-api
+
+  grafana:
+    image: grafana/grafana
+    container_name: training-grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
 
 volumes:
   postgres_data:

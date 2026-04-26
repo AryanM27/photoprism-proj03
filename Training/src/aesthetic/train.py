@@ -29,6 +29,8 @@ from torch import nn
 import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+import psutil
+import subprocess
 
 from src.aesthetic.model import build_aesthetic_model
 from src.common.checkpointing import (
@@ -58,6 +60,23 @@ def get_device(device_str: str) -> torch.device:
     if device_str == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(device_str)
+
+def log_system_metrics(step: int):
+    import mlflow
+
+    mlflow.log_metric("cpu_percent", psutil.cpu_percent(), step=step)
+    mlflow.log_metric("ram_percent", psutil.virtual_memory().percent, step=step)
+
+    try:
+        result = subprocess.run(
+            ["rocm-smi", "--showmemuse", "--showuse"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        mlflow.log_text(result.stdout, f"system/rocm_smi_epoch_{step}.txt")
+    except Exception as e:
+        mlflow.log_text(str(e), f"system/rocm_error_epoch_{step}.txt")
 
 def safe_collate(batch):
     batch = [item for item in batch if item is not None]
@@ -374,6 +393,7 @@ def train_aesthetic_baseline(config_path: str) -> dict:
     training_start_time = time.time()
 
     with start_run(experiment_name=config["experiment_name"]):
+        mlflow.enable_system_metrics_logging()
         log_config_params(config)
 
         mlflow.log_param("learning_rate", learning_rate)
@@ -488,6 +508,8 @@ def train_aesthetic_baseline(config_path: str) -> dict:
             epoch_duration_sec = time.time() - epoch_start_time
             print(f"Epoch {epoch} duration_sec: {epoch_duration_sec:.2f}")
             mlflow.log_metric("epoch_duration_sec", epoch_duration_sec, step=epoch)
+
+            log_system_metrics(epoch)
 
         history_file = None
         if config["output"].get("save_history", False):
