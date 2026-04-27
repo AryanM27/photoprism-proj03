@@ -98,9 +98,10 @@ pg_manifest_drift_score:
 
 pg_manifest_row_count:
   query: |
-    SELECT version_tag, manifest_type AS manifest_kind, SUM(record_count) AS row_count
+    SELECT version_tag, manifest_type AS manifest_kind, record_count AS row_count
     FROM dataset_snapshots
-    GROUP BY version_tag, manifest_type
+    WHERE version_tag NOT SIMILAR TO '%\_[0-9]{8}\_[0-9]{6}'
+      AND manifest_path NOT SIMILAR TO '%\_[0-9]{8}\_[0-9]{6}/%'
   metrics:
     - version_tag:
         usage: LABEL

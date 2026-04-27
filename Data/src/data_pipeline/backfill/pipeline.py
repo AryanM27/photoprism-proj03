@@ -20,6 +20,7 @@ def trigger_backfill(
     dry_run: bool = False,
     reembed: bool = True,
     source_dataset: str | None = None,
+    countdown_step: int = 0,
 ) -> list[dict]:
     """Query validated images and queue them for re-embedding and/or aesthetic re-scoring.
 
@@ -29,6 +30,7 @@ def trigger_backfill(
         dry_run:        If True, return jobs without writing to DB or publishing to queue.
         reembed:        If True, re-generate CLIP embeddings. Set False for aesthetic-only runs.
         source_dataset: If set, only backfill images from this dataset (e.g. "user").
+        countdown_step: Seconds between each dispatched task. Use >0 to throttle Qdrant load.
     """
     query = db_session.query(Image).filter_by(status="validated")
     if source_dataset is not None:
@@ -58,8 +60,12 @@ def trigger_backfill(
         db_session.commit()
         from src.data_pipeline.workers.backfill_worker import reprocess_image
         try:
-            for job in jobs:
-                reprocess_image.delay(job["image_id"], model_version, reembed=reembed)
+            for i, job in enumerate(jobs):
+                reprocess_image.apply_async(
+                    args=[job["image_id"], model_version],
+                    kwargs={"reembed": reembed},
+                    countdown=i * countdown_step,
+                )
         except Exception as pub_exc:
             logger.warning(
                 "Jobs committed with status='queued' but dispatching failed (%d jobs, model=%s): %s",
