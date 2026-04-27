@@ -4,9 +4,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.routes import health, image, index, search, webhook, score, embed
+from app.routes import health, image, index, search, webhook, score, embed, caption
 from app.routes import feedback as feedback_routes
 from app.services.checkpoint_resolver import resolve_checkpoint
+from app.services.captioner import Captioner
 from app.services.embedder import Embedder
 from app.services.embedder_onnx import OnnxEmbedder
 from app.services.ranker import AestheticRanker
@@ -42,6 +43,10 @@ async def lifespan(app: FastAPI):
         checkpoint_path=aesthetic_ckpt,
         model_type=os.getenv("AESTHETIC_MODEL_TYPE", "resnet18_linear"),
     )
+    app.state.captioner = Captioner(
+        model_name=os.getenv("CAPTION_MODEL", "Salesforce/blip-image-captioning-base"),
+        device_str=os.getenv("DEVICE", "auto"),
+    )
     ensure_collection(get_client())
     yield
 
@@ -59,3 +64,4 @@ app.include_router(image.router)
 app.include_router(feedback_routes.router)
 app.include_router(webhook.router)
 app.include_router(score.router)
+app.include_router(caption.router)

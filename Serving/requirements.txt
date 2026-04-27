@@ -12,6 +12,7 @@ pydantic
 onnxruntime
 onnxscript
 open-clip-torch>=2.24.0
+transformers>=4.40
 sqlalchemy
 psycopg2-binary
 requests

@@ -75,6 +75,7 @@ def process_validation_event(self, event: dict) -> dict:
         if source_dataset == "user" and image and image.storage_path:
             s3_path = f"s3://{os.environ.get('S3_BUCKET', 'training-module-proj03')}/{image.storage_path}"
             _score_user_upload(s3_path, metadata)
+            _caption_user_upload(image.storage_path, metadata)
 
         db.add(metadata)
         if image:
@@ -127,6 +128,24 @@ def _score_user_upload(image_uri: str, metadata) -> None:
         logger.info(f"[validation] aesthetic score for {image_uri}: {score_1_to_10:.3f}")
     except Exception as exc:
         logger.warning(f"[validation] aesthetic scoring failed for {image_uri}: {exc}")
+
+
+def _caption_user_upload(storage_path: str, metadata) -> None:
+    """Call serving /caption/image and write the generated caption onto metadata.text.
+
+    Failures are logged and silently ignored so validation still succeeds.
+    """
+    try:
+        resp = requests.post(
+            f"{SERVING_API_URL}/caption/image",
+            json={"storage_path": storage_path},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        metadata.text = resp.json()["caption"]
+        logger.info(f"[validation] caption for {storage_path}: {metadata.text}")
+    except Exception as exc:
+        logger.warning(f"[validation] captioning failed for {storage_path}: {exc}")
 
 
 def _mark_failed(image_id: str, reason: str) -> None:
