@@ -63,6 +63,8 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
+      WORKER_NAME: ingestion
+      METRICS_PORT: "8001"
     ports:
       - "8001:8001"
     volumes:
@@ -100,6 +102,8 @@ services:
       SERVING_API_URL: http://serving-api:8000
       AESTHETIC_MODEL_VERSION: ${AESTHETIC_MODEL_VERSION:-mobilenet_v3_large_fusion}
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
+      WORKER_NAME: validation
+      METRICS_PORT: "8002"
     ports:
       - "8002:8002"
     depends_on:
@@ -134,6 +138,8 @@ services:
       CLIP_BASE_MODEL: ${CLIP_BASE_MODEL:-clip-ViT-B-32}
       CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
+      WORKER_NAME: embedding
+      METRICS_PORT: "8003"
     ports:
       - "8003:8003"
     depends_on:
@@ -149,7 +155,6 @@ services:
     build:
       context: ../Data
       dockerfile: docker/Dockerfile.worker
-    container_name: backfill-worker
     command: >
       celery -A src.data_pipeline.workers.celery_app worker
       --loglevel=info --queues=backfill --concurrency=1
@@ -166,8 +171,28 @@ services:
       CHECKPOINT_PATH: ${CHECKPOINT_PATH:-}
       SERVING_API_URL: http://serving-api:8000
       PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus_multiproc
-    ports:
-      - "8004:8004"
+      WORKER_NAME: backfill
+      METRICS_PORT: "8004"
+    expose:
+      - "8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: ../Data
+      dockerfile: docker/Dockerfile.worker
+    container_name: celery-beat
+    command: celery -A src.data_pipeline.workers.celery_app beat --loglevel=info
+    env_file: ../Data/docker/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/photoprism
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-clip-ViT-B-32}
     depends_on:
       postgres:
         condition: service_healthy

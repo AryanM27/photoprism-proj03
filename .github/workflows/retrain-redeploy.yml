@@ -177,7 +177,7 @@ jobs:
             if [ "$AESTHETIC_PROMOTED" = "success" ]; then
               AESTHETIC_VERSION=$(python3 -c "import yaml; d=yaml.safe_load(open('../Serving/config/current_production.yaml')); print(d.get('aesthetic',{}).get('model_version','mobilenet_v3_large_fusion'))")
               echo "Triggering aesthetic-only backfill for all images: $AESTHETIC_VERSION"
-              docker compose -f ../docker/docker-compose.yml --env-file ../Data/docker/.env restart backfill-worker
+              docker compose -f ../docker/docker-compose.yml --env-file ../Data/docker/.env up -d --scale backfill-worker=2 backfill-worker
               python3 -c "
             from src.data_pipeline.db.session import SessionLocal
             from src.data_pipeline.backfill.pipeline import trigger_backfill

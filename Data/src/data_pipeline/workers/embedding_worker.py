@@ -21,9 +21,6 @@ from src.data_pipeline.db.models import Image, ImageMetadata
 
 logger = logging.getLogger(__name__)
 
-from src.data_pipeline.observability.celery_signals import register_signals
-
-register_signals(worker_name="embedding", metrics_port=8003)
 
 _encoder: CLIPEncoder | None = None
 _store: QdrantStore | None = None

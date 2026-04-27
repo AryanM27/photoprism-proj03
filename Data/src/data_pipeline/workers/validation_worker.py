@@ -29,9 +29,6 @@ AESTHETIC_MODEL_VERSION = os.environ.get("AESTHETIC_MODEL_VERSION", "mobilenet_v
 
 logger = logging.getLogger(__name__)
 
-from src.data_pipeline.observability.celery_signals import register_signals
-
-register_signals(worker_name="validation", metrics_port=8002)
 
 
 @app.task(
