@@ -37,15 +37,21 @@ def main():
 
     db = SessionLocal()
     try:
-        total = db.query(Image).count()
-        logger.info("Patching Qdrant payloads for %d images...", total)
+        total = db.query(Image).filter(Image.embedding_status == "embedded").count()
+        logger.info("Patching Qdrant payloads for %d embedded images...", total)
 
         offset = 0
         patched = 0
         skipped = 0
 
         while True:
-            batch = db.query(Image).offset(offset).limit(BATCH_SIZE).all()
+            batch = (
+                db.query(Image)
+                .filter(Image.embedding_status == "embedded")
+                .offset(offset)
+                .limit(BATCH_SIZE)
+                .all()
+            )
             if not batch:
                 break
 
