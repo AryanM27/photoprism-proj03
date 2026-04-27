@@ -1,7 +1,7 @@
 import hashlib
 import os
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
@@ -37,11 +37,23 @@ def upsert_photo(client: QdrantClient, image_id: str, embedding: list[float], pa
     )
 
 
-def search_photos(client: QdrantClient, query_embedding: list[float], top_k: int = 10) -> list[dict]:
+def search_photos(
+    client: QdrantClient,
+    query_embedding: list[float],
+    top_k: int = 10,
+    user_id: str | None = None,
+) -> list[dict]:
+    query_filter = None
+    if user_id:
+        query_filter = Filter(must=[
+            FieldCondition(key="source_dataset", match=MatchValue(value="user")),
+            FieldCondition(key="user_id", match=MatchValue(value=user_id)),
+        ])
     results = client.query_points(
         collection_name=COLLECTION_NAME,
         query=query_embedding,
         limit=top_k,
+        query_filter=query_filter,
     ).points
     return [
         {"image_id": hit.payload.get("image_id"), "score": hit.score, "payload": hit.payload}

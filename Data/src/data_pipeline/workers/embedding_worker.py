@@ -165,6 +165,8 @@ def embed_image(self, image_id: str) -> None:
             "aesthetic_score": float(aesthetic_score) if aesthetic_score else None,
             "model_version": model_ver,
             "checkpoint_path": ckpt_path_env or None,
+            "source_dataset": image.source_dataset,
+            "user_id": image.user_id,
         }
         _get_store().upsert(image_id, vector, payload)
 
