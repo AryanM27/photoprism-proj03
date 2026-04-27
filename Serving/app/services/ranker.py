@@ -180,11 +180,18 @@ class AestheticRanker:
         with open(path, "rb") as f:
             return self.score_image_bytes(f.read())
 
-    def rerank(self, results: list[dict], image_bytes_map: dict[str, bytes]) -> list[dict]:
+    def rerank(self, results: list[dict], image_bytes_map: dict[str, bytes],
+               semantic_weight: float = 0.7, aesthetic_weight: float = 0.3) -> list[dict]:
+        # Normalise raw aesthetic scores (1–10) to 0–1 to match semantic score scale.
         for item in results:
             iid = item["image_id"]
-            item["aesthetic_score"] = (
+            raw = (
                 self.score_image_bytes(image_bytes_map[iid])
                 if iid in image_bytes_map else 0.0
             )
-        return sorted(results, key=lambda x: x["aesthetic_score"], reverse=True)
+            item["aesthetic_score"] = raw
+            item["score"] = (
+                semantic_weight * item["score"]
+                + aesthetic_weight * ((raw - 1.0) / 9.0)
+            )
+        return sorted(results, key=lambda x: x["score"], reverse=True)
