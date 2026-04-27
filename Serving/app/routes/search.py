@@ -28,6 +28,7 @@ class TextSearchRequest(BaseModel):
     top_k: int = 10
     rerank: bool = True
     user_id: str | None = None
+    score_threshold: float = 0.20
 
 
 class SearchResult(BaseModel):
@@ -51,7 +52,7 @@ def search(req: TextSearchRequest, request: Request):
         # Embedding norm should be ~1.0 if normalised; drift here signals upstream change
         INFERENCE_QUERY_EMBEDDING_NORM.observe(float(np.linalg.norm(query_embedding)))
 
-        results = qdrant.search_photos(client, query_embedding, top_k=req.top_k, user_id=req.user_id)
+        results = qdrant.search_photos(client, query_embedding, top_k=req.top_k, user_id=req.user_id, score_threshold=req.score_threshold)
 
         # Record vector-stage scores
         for item in results:

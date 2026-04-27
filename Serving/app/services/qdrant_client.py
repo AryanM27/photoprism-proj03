@@ -42,6 +42,7 @@ def search_photos(
     query_embedding: list[float],
     top_k: int = 10,
     user_id: str | None = None,
+    score_threshold: float = 0.20,
 ) -> list[dict]:
     query_filter = None
     if user_id:
@@ -54,6 +55,7 @@ def search_photos(
         query=query_embedding,
         limit=top_k,
         query_filter=query_filter,
+        score_threshold=score_threshold,
     ).points
     return [
         {"image_id": hit.payload.get("image_id"), "score": hit.score, "payload": hit.payload}
