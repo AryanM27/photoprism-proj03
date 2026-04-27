@@ -77,7 +77,7 @@ def process_validation_event(self, event: dict) -> dict:
             _score_user_upload(s3_path, metadata)
             _caption_user_upload(image.storage_path, metadata)
 
-        db.add(metadata)
+        db.merge(metadata)
         if image:
             image.status = "validated"
 
