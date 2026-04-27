@@ -256,12 +256,18 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_REPO: ${GITHUB_REPO:-AryanM27/photoprism-proj03}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      S3_PREFIX: ${S3_PREFIX:-data_arm9337}
+      PHOTOPRISM_STORAGE_PATH: /photoprism/storage
     volumes:
       - ../Serving/checkpoints:/checkpoints
+      - /mnt/block/photoprism/storage:/photoprism/storage:ro
     depends_on:
       qdrant:
         condition: service_started
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 
