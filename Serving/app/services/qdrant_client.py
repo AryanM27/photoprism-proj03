@@ -42,7 +42,7 @@ def search_photos(
     query_embedding: list[float],
     top_k: int = 10,
     user_id: str | None = None,
-    score_threshold: float = 0.20,
+    score_threshold: float = 0.05,
 ) -> list[dict]:
     query_filter = None
     if user_id:
