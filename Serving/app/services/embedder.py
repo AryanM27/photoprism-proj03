@@ -38,6 +38,7 @@ class Embedder:
         internal_name = model_name.removeprefix("clip-")
         self._model_name = model_name
 
+        # Fine-tuned model — used for image embedding only.
         self._model, _, self._transform = open_clip.create_model_and_transforms(
             internal_name, pretrained="openai"
         )
@@ -64,6 +65,15 @@ class Embedder:
             else:
                 logger.info("No checkpoint supplied — using base pretrained weights")
 
+        # Base CLIP model — used for text query encoding only.
+        # Fine-tuned models lose zero-shot text-image alignment; base weights
+        # preserve the broad language-vision alignment from 400M training pairs.
+        self._text_model, _, _ = open_clip.create_model_and_transforms(
+            internal_name, pretrained="openai"
+        )
+        self._text_model = self._text_model.to(self.device).eval()
+        logger.info("Loaded base CLIP model for text query encoding")
+
     @property
     def model_name(self) -> str:
         return self._model_name
@@ -71,7 +81,7 @@ class Embedder:
     def embed_text(self, text: str) -> list[float]:
         tokens = self._tokenizer([text]).to(self.device)
         with torch.no_grad():
-            vec = self._model.encode_text(tokens)
+            vec = self._text_model.encode_text(tokens)
         return self._postprocess(vec)
 
     def embed_image(self, image: Image.Image) -> list[float]:
