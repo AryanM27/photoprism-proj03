@@ -45,20 +45,18 @@ def _download_s3_jsonl(s3, key: str) -> bytes:
     return buf.getvalue()
 
 
-def _previous_snapshot(db, version_tag: str, manifest_kind: str):
-    """Return the second-most-recent DatasetSnapshot for this kind, or None."""
+def _previous_snapshot(db, version_tag: str, manifest_kind: str, current_ts: str):
+    """Return the most recent dated snapshot for this version/kind that isn't the current run."""
     from src.data_pipeline.db.models import DatasetSnapshot
-    rows = (
+    return (
         db.query(DatasetSnapshot)
         .filter(DatasetSnapshot.manifest_type == manifest_kind)
+        .filter(DatasetSnapshot.version_tag == version_tag)
+        .filter(DatasetSnapshot.manifest_path.like(f'%/{version_tag}_%/'))
+        .filter(~DatasetSnapshot.manifest_path.contains(current_ts))
         .order_by(DatasetSnapshot.created_at.desc())
-        .all()
+        .first()
     )
-    # Skip current version rows; take the first row that belongs to a different version
-    for row in rows:
-        if row.version_tag != version_tag:
-            return row
-    return None
 
 
 def _run_drift(ref_df, cur_df, numeric_cols: list[str]) -> dict:
@@ -114,7 +112,7 @@ def _persist_one_kind(db, s3, version_tag: str, ts: str, kind: str) -> None:
     from src.data_pipeline.db.models import DriftMetric, ImageMetadata
     from sqlalchemy import text
 
-    prev = _previous_snapshot(db, version_tag, kind)
+    prev = _previous_snapshot(db, version_tag, kind, ts)
     if prev is None:
         logger.info("No previous snapshot found for %s/%s — skipping drift", version_tag, kind)
         return
