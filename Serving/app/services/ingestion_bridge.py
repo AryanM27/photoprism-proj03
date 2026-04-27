@@ -114,6 +114,11 @@ def dispatch_validation_task(image_id: str, storage_key: str) -> None:
     from celery import Celery
 
     broker_app = Celery(broker=RABBITMQ_URL)
+    broker_app.conf.update(
+        task_serializer="json",
+        accept_content=["json"],
+        result_serializer="json",
+    )
     broker_app.send_task(
         "src.data_pipeline.workers.validation_worker.process_validation_event",
         args=[{"image_id": image_id, "storage_path": storage_key}],
