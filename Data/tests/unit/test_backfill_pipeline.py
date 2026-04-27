@@ -44,7 +44,7 @@ def test_trigger_backfill_wet_run_writes_db_and_publishes():
 
     assert fake_session.add.call_count == 3
     fake_session.commit.assert_called()
-    assert mock_task.delay.call_count == 3
+    assert mock_task.apply_async.call_count == 3
 
 
 def test_trigger_backfill_returns_empty_for_no_validated_images():
