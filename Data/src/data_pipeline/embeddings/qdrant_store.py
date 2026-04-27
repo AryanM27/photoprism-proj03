@@ -47,7 +47,7 @@ class QdrantStore:
             collection_name=self.collection,
             points=[PointStruct(
                 id=_stable_uint64(image_id),
-                vector=vector.tolist(),
+                vector=vector.tolist() if hasattr(vector, "tolist") else vector,
                 payload={**payload, "image_id": image_id},
             )],
         )
