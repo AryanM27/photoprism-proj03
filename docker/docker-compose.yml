@@ -262,6 +262,7 @@ services:
     volumes:
       - ../Serving/checkpoints:/checkpoints
       - /mnt/block/photoprism/storage:/photoprism/storage:ro
+      - /mnt/block/huggingface_cache:/root/.cache/huggingface
     depends_on:
       qdrant:
         condition: service_started
