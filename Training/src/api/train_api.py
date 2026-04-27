@@ -20,6 +20,17 @@ JOBS: Dict[str, Dict[str, Any]] = {}
 TRAINING_JOBS_TOTAL = Counter("training_jobs_total", "Total training jobs", ["task"])
 TRAINING_JOBS_FAILED = Counter("training_jobs_failed_total", "Failed jobs", ["task"])
 TRAINING_JOB_RUNNING = Gauge("training_job_running", "Training job running state")
+MODEL_BEST_VAL_MSE= Gauge("model_best_val_mse_loss", "Best validation MSE loss for aesthetic models", ["task","model_version"])
+MODEL_TEST_MSE= Gauge("model_test_mse_loss", "Test MSE loss for aesthetic models", ["task","model_version"])
+MODEL_TEST_MAE= Gauge("model_test_mae_loss", "Test MAE loss for aesthetic models", ["task","model_version"])
+
+def _safe_float(value):
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except Exception:
+        return None
 
 
 def _apply_request_overrides(base_config: dict, req: TrainRequest) -> dict:
@@ -77,6 +88,22 @@ def _apply_request_overrides(base_config: dict, req: TrainRequest) -> dict:
 
     return config
 
+def _publish_model_metrics_to_prometheus(task: str, summary: dict):
+    model_version = str(summary.get("model_version", "unknown"))
+
+    best_val_mse_loss = _safe_float(summary.get("best_val_mse_loss"))
+    test_mse = _safe_float(summary.get("mse_loss"))
+    test_mae = _safe_float(summary.get("mae"))
+
+    if best_val_mse_loss is not None:
+        MODEL_BEST_VAL_MSE.labels(task=task, model_version=model_version).set(best_val_mse_loss)
+
+    if test_mse is not None:
+        MODEL_TEST_MSE.labels(task=task, model_version=model_version).set(test_mse)
+
+    if test_mae is not None:
+        MODEL_TEST_MAE.labels(task=task, model_version=model_version).set(test_mae)
+
 
 def _run_job(job_id: str, req: TrainRequest):
     JOBS[job_id]["status"] = "running"
@@ -93,6 +120,8 @@ def _run_job(job_id: str, req: TrainRequest):
             summary = train_semantic_from_config(resolved_config)
         else:
             raise ValueError(f"Unsupported task: {req.task}")
+
+        _publish_model_metrics_to_prometheus(req.task, summary)
 
         JOBS[job_id]["status"] = "completed"
         JOBS[job_id]["summary"] = summary

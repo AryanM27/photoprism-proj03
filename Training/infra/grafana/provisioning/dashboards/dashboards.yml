@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: Training Dashboards
+    orgId: 1
+    folder: Training Module
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
