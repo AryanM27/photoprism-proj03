@@ -11,7 +11,14 @@ jobs:
   deploy:
     name: Redeploy Serving API
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Deploy to Chameleon VM
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -25,3 +32,44 @@ jobs:
             docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --scale serving-api=3 --no-recreate nginx
             docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --force-recreate --scale serving-api=3 serving-api
             echo "Serving redeployed"
+
+      - name: Health check (30s canary window)
+        id: health
+        continue-on-error: true
+        run: |
+          echo "Waiting 30s for containers to come up..."
+          sleep 30
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.CHAMELEON_VM_IP }}/health)
+            echo "Health check $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "healthy=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "healthy=false" >> $GITHUB_OUTPUT
+          exit 1
+
+      - name: Rollback on health check failure
+        if: steps.health.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CHAMELEON_VM_IP }}
+          username: cc
+          key: ${{ secrets.CHAMELEON_SSH_KEY }}
+          passphrase: ${{ secrets.CHAMELEON_SSH_PASSPHRASE }}
+          script: |
+            cd /home/cc/photoprism-proj03
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git revert HEAD --no-edit
+            git push
+            docker compose -f docker/docker-compose.yml --env-file Data/docker/.env up -d --force-recreate --scale serving-api=3 serving-api
+            echo "Rollback complete"
+
+      - name: Fail job if rollback was triggered
+        if: steps.health.outcome == 'failure'
+        run: |
+          echo "Health check failed — rolled back to previous version."
+          exit 1
