@@ -15,10 +15,15 @@ independent session and SimState.
 import logging
 import math
 import os
+from pathlib import Path
 import random
 import signal
 import time
 import threading
+
+# Repo root = four levels up from this file (photoprism/loop.py → data_generator → src → repo root)
+_REPO_ROOT = Path(__file__).parent.parent.parent.parent
+_DEFAULT_USERS_FILE = str(_REPO_ROOT / "docker" / "datagen_users.txt")
 
 from .actions import ACTION_FNS, pick_action
 from .bootstrap import bootstrap, teardown
@@ -28,7 +33,6 @@ from .s3_source import S3ImageSource
 logger = logging.getLogger(__name__)
 
 _STOP = False
-
 
 def _handle_signal(signum, frame):
     global _STOP
@@ -40,6 +44,46 @@ def _think_time(mean_seconds: float = 2.0, sigma: float = 0.5) -> float:
     """Log-normal think time — mean ~mean_seconds, heavy tail."""
     mu = math.log(mean_seconds) - sigma**2 / 2
     return max(0.1, random.lognormvariate(mu, sigma))
+
+
+def load_users_from_file(path: str) -> list[tuple[str, str]]:
+    """Read username:password pairs from a text file, skipping blank lines and comments."""
+    users = []
+    with open(path) as f:
+        for line in f:
+            line = os.path.expandvars(line.strip())
+            if not line or line.startswith("#"):
+                continue
+            username, _, password = line.partition(":")
+            if username and password:
+                users.append((username.strip(), password.strip()))
+    if not users:
+        raise ValueError(f"No valid user entries found in {path}")
+    return users
+
+
+def _ensure_datagen_users(
+    admin_client: PhotoprismClient, users: list[tuple[str, str]]
+) -> None:
+    """Create user accounts in PhotoPrism if they don't already exist."""
+    try:
+        existing = {u["Name"] for u in admin_client.get_users() if u.get("Name")}
+    except Exception as exc:
+        logger.warning("Could not fetch existing users: %s", exc)
+        existing = set()
+
+    for uname, upass in users:
+        if uname not in existing:
+            try:
+                admin_client.create_user(uname, upass)
+                logger.info("Created user %s", uname)
+            except Exception as exc:
+                logger.warning("Could not create %s: %s", uname, exc)
+
+    logger.info(
+        "Datagen users ready:\n  %s",
+        "\n  ".join(f"{u}:{p}" for u, p in users),
+    )
 
 
 def _run_user(
@@ -101,8 +145,9 @@ def run_forever(
     password: str,
     s3_bucket: str,
     s3_prefix: str,
+    users_file: str,
     mean_think_seconds: float = 2.0,
-    num_users: int = 1,
+    num_users: int | None = None,
 ) -> None:
     global _STOP
     _STOP = False
@@ -110,14 +155,30 @@ def run_forever(
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
+    datagen_users = load_users_from_file(users_file)
+    if num_users is not None:
+        datagen_users = datagen_users[:num_users]
+    logger.info("Loaded %d user(s) from %s", len(datagen_users), users_file)
+
     s3_source = S3ImageSource(bucket=s3_bucket, prefix=s3_prefix)
-    logger.info("Starting %d simulated user(s)", num_users)
+
+    try:
+        admin_client = PhotoprismClient(base_url=photoprism_url, username=username, password=password)
+        admin_client.login()
+        _ensure_datagen_users(admin_client, datagen_users)
+    except Exception as exc:
+        logger.warning("Admin setup skipped: %s", exc)
+    finally:
+        try:
+            admin_client.logout()
+        except Exception:
+            pass
 
     threads = []
-    for i in range(1, num_users + 1):
+    for i, (uname, upass) in enumerate(datagen_users, start=1):
         t = threading.Thread(
             target=_run_user,
-            args=(i, photoprism_url, username, password, s3_source, mean_think_seconds),
+            args=(i, photoprism_url, uname, upass, s3_source, mean_think_seconds),
             daemon=True,
             name=f"datagen-user-{i}",
         )
@@ -148,10 +209,15 @@ if __name__ == "__main__":
         default=float(os.getenv("MEAN_THINK_SECONDS", "2.0")),
     )
     parser.add_argument(
+        "--users-file",
+        default=os.getenv("DATAGEN_USERS_FILE", _DEFAULT_USERS_FILE),
+        help="Path to username:password file (one entry per line)",
+    )
+    parser.add_argument(
         "--num-users",
         type=int,
-        default=int(os.getenv("NUM_USERS", "1")),
-        help="Number of concurrent simulated users",
+        default=int(os.getenv("NUM_USERS", "0")) or None,
+        help="How many users from the file to run (default: all)",
     )
     args = parser.parse_args()
 
@@ -166,6 +232,7 @@ if __name__ == "__main__":
         password=args.password,
         s3_bucket=args.s3_bucket,
         s3_prefix=args.s3_prefix,
+        users_file=args.users_file,
         mean_think_seconds=args.mean_think,
         num_users=args.num_users,
     )
