@@ -51,7 +51,7 @@ def load_users_from_file(path: str) -> list[tuple[str, str]]:
     users = []
     with open(path) as f:
         for line in f:
-            line = line.strip()
+            line = os.path.expandvars(line.strip())
             if not line or line.startswith("#"):
                 continue
             username, _, password = line.partition(":")

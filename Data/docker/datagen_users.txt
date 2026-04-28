@@ -1,12 +1,12 @@
 # Datagen user credentials — one entry per line: username:password
-# These users are created in PhotoPrism on first run if they don't exist.
-datagen_user_1:datagen1234!
-datagen_user_2:datagen1234!
-datagen_user_3:datagen1234!
-datagen_user_4:datagen1234!
-datagen_user_5:datagen1234!
-datagen_user_6:datagen1234!
-datagen_user_7:datagen1234!
-datagen_user_8:datagen1234!
-datagen_user_9:datagen1234!
-datagen_user_10:datagen1234!
+# Env vars are expanded at runtime, e.g. ${PHOTOPRISM_USERNAME}
+${PHOTOPRISM_USERNAME}:${PHOTOPRISM_PASSWORD}
+# datagen_user_2:datagen1234!
+# datagen_user_3:datagen1234!
+# datagen_user_4:datagen1234!
+# datagen_user_5:datagen1234!
+# datagen_user_6:datagen1234!
+# datagen_user_7:datagen1234!
+# datagen_user_8:datagen1234!
+# datagen_user_9:datagen1234!
+# datagen_user_10:datagen1234!
