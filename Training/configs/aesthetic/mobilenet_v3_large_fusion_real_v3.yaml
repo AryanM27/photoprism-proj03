@@ -7,7 +7,7 @@ dataset:
   manifest_uri: swift://training-module-proj03/data_arm9337/manifests/dataset-v1.0/aesthetic_train.jsonl
   dataset_version: aesthetic-ava-v1
   start_index: 0
-  max_records: 10000
+  max_records: 24000
   subset_seed: 42
 
 model:
@@ -30,6 +30,12 @@ training:
   log_every_n_batches: 50
   favourite_weight_alpha: 0.30
   max_feedback_weight: 4.0
+  good_rank_threshold: 10
+  low_favourite_threshold: 0
+  high_favourite_threshold: 2
+  good_rank_low_fav_penalty: 0.10
+  no_rank_high_fav_boost: 0.10
+  good_rank_high_fav_boost: 0.05
 
 evaluation:
   run_test_after_training: true
