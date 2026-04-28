@@ -82,7 +82,7 @@ class AestheticDataset(Dataset):
             "avg_shown_rank": (
                 float(record["avg_shown_rank"])
                 if record.get("avg_shown_rank") is not None
-                else None
+                else 0.0
                 ),
             "rank_present": record.get("avg_shown_rank")is not None,
             }
