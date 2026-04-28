@@ -15,10 +15,15 @@ independent session and SimState.
 import logging
 import math
 import os
+from pathlib import Path
 import random
 import signal
 import time
 import threading
+
+# Repo root = four levels up from this file (photoprism/loop.py → data_generator → src → repo root)
+_REPO_ROOT = Path(__file__).parent.parent.parent.parent
+_DEFAULT_USERS_FILE = str(_REPO_ROOT / "docker" / "datagen_users.txt")
 
 from .actions import ACTION_FNS, pick_action
 from .bootstrap import bootstrap, teardown
@@ -198,7 +203,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--users-file",
-        default=os.getenv("DATAGEN_USERS_FILE", "docker/datagen_users.txt"),
+        default=os.getenv("DATAGEN_USERS_FILE", _DEFAULT_USERS_FILE),
         help="Path to username:password file (one entry per line)",
     )
     parser.add_argument(
