@@ -21,7 +21,7 @@ services:
 
 
   training-api:
-    image: training-module:cpu
+    image: training-module:rocm
     container_name: training-api
     restart: unless-stopped
 
@@ -31,6 +31,16 @@ services:
 
     ports:
       - "8080:8080"
+
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    
+    security_opt:
+      - seccomp=unconfined
+    
+    group_add:
+      - video
 
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000

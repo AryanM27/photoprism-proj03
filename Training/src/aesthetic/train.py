@@ -279,7 +279,7 @@ def train_aesthetic_baseline(config_path: str) -> dict:
         image_size=config["model"]["image_size"],
         split="val",
         start_index=0,
-        max_records=50,
+        max_records=2500,
     )
 
     print(f"Train samples: {len(train_dataset)}")
