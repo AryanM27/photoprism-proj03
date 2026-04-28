@@ -126,6 +126,7 @@ def do_favorite(client: PhotoprismClient, state: SimState) -> None:
             image_id=result.get("id", ""),
             query=result.get("_query", ""),
             score=result.get("score", 0.0),
+            user_id=state.user_id,
         )
         logger.debug("[%s] liked semantic result %s", state.user_id, result.get("id"))
         state.likes_done += 1
@@ -143,6 +144,7 @@ def do_click(client: PhotoprismClient, state: SimState) -> None:
             image_id=result.get("id", ""),
             query=result.get("_query", ""),
             score=result.get("score", 0.0),
+            user_id=state.user_id,
         )
         logger.debug("[%s] clicked %s", state.user_id, result.get("id"))
     except requests.RequestException as exc:

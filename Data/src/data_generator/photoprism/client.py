@@ -70,11 +70,11 @@ class PhotoprismClient:
         resp.raise_for_status()
         return resp.json() or []
 
-    def click_photo_semantic(self, image_id: str, query: str, score: float) -> None:
+    def click_photo_semantic(self, image_id: str, query: str, score: float, user_id: str = "") -> None:
         url = f"{self._base_url}/api/v1/semantic/click"
         resp = self._session.post(
             url,
-            json={"image_id": image_id, "query": query, "score": score},
+            json={"image_id": image_id, "query": query, "score": score, "user_id": user_id},
             timeout=30,
         )
         resp.raise_for_status()
@@ -84,11 +84,11 @@ class PhotoprismClient:
         resp = self._session.post(url, timeout=30)
         resp.raise_for_status()
 
-    def like_photo_semantic(self, image_id: str, query: str, score: float) -> None:
+    def like_photo_semantic(self, image_id: str, query: str, score: float, user_id: str = "") -> None:
         url = f"{self._base_url}/api/v1/semantic/like"
         resp = self._session.post(
             url,
-            json={"image_id": image_id, "query": query, "score": score},
+            json={"image_id": image_id, "query": query, "score": score, "user_id": user_id},
             timeout=30,
         )
         resp.raise_for_status()
