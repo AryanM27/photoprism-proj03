@@ -7,7 +7,7 @@ dataset:
   manifest_uri: swift://training-module-proj03/data_arm9337/manifests/dataset-v1.0/aesthetic_train.jsonl
   dataset_version: aesthetic-ava-v1
   start_index: 0
-  max_records: 24000
+  max_records: 50
   subset_seed: 42
 
 model:
@@ -45,7 +45,7 @@ evaluation:
   test_manifest_path: null
   batch_size: 4
   device: cpu
-  max_records: 2500
+  max_records: 50
 
 runtime:
   device: auto
