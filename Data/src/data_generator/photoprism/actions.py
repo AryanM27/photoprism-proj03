@@ -14,12 +14,13 @@ from .state import SimState
 logger = logging.getLogger(__name__)
 
 # Action weights — must sum to 1.0
+# Skewed toward engagement (searches, clicks, likes) over uploads.
 ACTION_WEIGHTS = {
-    "browse": 0.25,
-    "upload": 0.10,
-    "favorite": 0.15,
-    "semantic_search": 0.30,
-    "click": 0.20,
+    "browse": 0.10,
+    "upload": 0.03,
+    "favorite": 0.22,
+    "semantic_search": 0.40,
+    "click": 0.25,
 }
 
 

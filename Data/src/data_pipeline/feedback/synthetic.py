@@ -24,8 +24,8 @@ def generate_feedback_session(
     """Simulate one query session and return a list of feedback events.
 
     Click probability decays linearly with rank position:
-        rank 0 → 40% click, rank 9 → ~4% click.
-    Favorite probability is 20% of click probability.
+        rank 0 → 60% click, rank 9 → ~24% click.
+    Favorite probability is 35% of click probability.
 
     Args:
         user_id:       Synthetic user identifier.
@@ -43,8 +43,8 @@ def generate_feedback_session(
 
     events = []
     for rank, image_id in enumerate(shown):
-        click_prob = max(0.05, 0.4 - rank * 0.04)
-        fav_prob = click_prob * 0.2
+        click_prob = max(0.15, 0.6 - rank * 0.04)
+        fav_prob = click_prob * 0.35
         events.append({
             "event_id":        str(uuid.uuid4()),
             "user_id":         user_id,

@@ -131,6 +131,16 @@ class PhotoprismClient:
         resp.raise_for_status()
         return resp.json() or []
 
+    def create_user(self, username: str, password: str) -> dict:
+        url = f"{self._base_url}/api/v1/users"
+        resp = self._session.post(
+            url,
+            json={"Name": username, "DisplayName": username, "Password": password, "Role": "user"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
     @property
     def username(self) -> str:
         return self._username

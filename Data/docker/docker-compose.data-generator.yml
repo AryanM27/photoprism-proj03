@@ -23,6 +23,10 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       MEAN_THINK_SECONDS: ${MEAN_THINK_SECONDS:-2.0}
       SERVING_API_URL: ${SERVING_API_URL:-http://serving-api:8000}
+      DATAGEN_USERS_FILE: /app/docker/datagen_users.txt
+      NUM_USERS: ${NUM_USERS:-3}
+    volumes:
+      - ./datagen_users.txt:/app/docker/datagen_users.txt:ro
     restart: unless-stopped
     networks:
       - photoprism_default
