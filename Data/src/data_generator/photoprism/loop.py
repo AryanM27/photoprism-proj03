@@ -162,10 +162,17 @@ def run_forever(
 
     s3_source = S3ImageSource(bucket=s3_bucket, prefix=s3_prefix)
 
-    admin_client = PhotoprismClient(base_url=photoprism_url, username=username, password=password)
-    admin_client.login()
-    _ensure_datagen_users(admin_client, datagen_users)
-    admin_client.logout()
+    try:
+        admin_client = PhotoprismClient(base_url=photoprism_url, username=username, password=password)
+        admin_client.login()
+        _ensure_datagen_users(admin_client, datagen_users)
+    except Exception as exc:
+        logger.warning("Admin setup skipped: %s", exc)
+    finally:
+        try:
+            admin_client.logout()
+        except Exception:
+            pass
 
     threads = []
     for i, (uname, upass) in enumerate(datagen_users, start=1):
