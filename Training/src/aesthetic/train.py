@@ -158,19 +158,8 @@ def run_one_epoch(model, loader, criterion, optimizer, device, train: bool, conf
         targets = batch["aesthetic_score"].to(device).float()
         num_favourites = batch["num_favourites"].to(device).float()
 
-        raw_avg_rank = batch["avg_shown_rank"]
-
-        rank_present = torch.tensor(
-        [rank is not None for rank in raw_avg_rank],
-        dtype=torch.bool,
-        device=device,
-        )
-
-        avg_shown_rank = torch.tensor(
-        [float(rank) if rank is not None else 0.0 for rank in raw_avg_rank],
-        dtype=torch.float32,
-        device=device,
-        )
+        avg_shown_rank = batch["avg_shown_rank"].to(device).float()
+        rank_present = batch["rank_present"].to(device).bool()
 
         if train:
             optimizer.zero_grad()

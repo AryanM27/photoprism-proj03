@@ -84,6 +84,7 @@ class AestheticDataset(Dataset):
                 if record.get("avg_shown_rank") is not None
                 else None
                 ),
+            "rank_present": record.get("avg_shown_rank")is not None,
             }
         
         except Exception as e:
