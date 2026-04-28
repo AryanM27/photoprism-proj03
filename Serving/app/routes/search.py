@@ -28,7 +28,7 @@ class TextSearchRequest(BaseModel):
     top_k: int = 10
     rerank: bool = True
     user_id: str | None = None
-    score_threshold: float = 0.05
+    score_threshold: float = 0.20
 
 
 class SearchResult(BaseModel):

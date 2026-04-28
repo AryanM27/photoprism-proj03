@@ -8,6 +8,41 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+# Keys produced by OpenCLIPEnhancedSemanticModel (Training) that need remapping
+# before being loaded into a plain open_clip model at serving time.
+#
+# The training wrapper stores the CLIP backbone under "clip_model.*" AND exposes
+# two module aliases ("visual" → clip_model.visual, "text" → clip_model.transformer).
+# PyTorch state_dict records both paths. The alias "visual.*" matches open_clip's
+# "visual.*", so the image encoder loads fine — but "text.*" does NOT match
+# open_clip's "transformer.*", leaving the text encoder at base openai weights
+# while the image encoder gets fine-tuned laion2b weights. That cross-pretrain
+# mismatch makes cosine similarity collapse (<0.05 for direct matches).
+#
+# This function:
+#   1. Strips "clip_model." prefix → maps clip_model.transformer.* → transformer.*
+#      so the text encoder is also loaded from the checkpoint.
+#   2. Drops projection-head keys (image_proj.*, text_proj.*) that don't exist
+#      in the raw open_clip model.
+#   3. Drops duplicate alias keys ("visual.*", "text.*") that are already covered
+#      by the remapped "clip_model.*" keys.
+_CLIP_MODEL_PREFIX = "clip_model."
+_DROP_PREFIXES = ("image_proj.", "text_proj.", "visual.", "text.")
+
+
+def _remap_openclip_enhanced_keys(state: dict) -> dict:
+    if not any(k.startswith(_CLIP_MODEL_PREFIX) for k in state):
+        return state  # not an OpenCLIPEnhancedSemanticModel checkpoint — pass through
+    remapped = {}
+    for k, v in state.items():
+        if k.startswith(_CLIP_MODEL_PREFIX):
+            remapped[k[len(_CLIP_MODEL_PREFIX):]] = v
+        elif any(k.startswith(p) for p in _DROP_PREFIXES):
+            pass  # drop alias duplicates and projection heads
+        else:
+            remapped[k] = v
+    return remapped
+
 
 class Embedder:
     """CLIP text+image embedder backed by open_clip.
@@ -38,7 +73,6 @@ class Embedder:
         internal_name = model_name.removeprefix("clip-")
         self._model_name = model_name
 
-        # Fine-tuned model — used for image embedding only.
         self._model, _, self._transform = open_clip.create_model_and_transforms(
             internal_name, pretrained="openai"
         )
@@ -49,6 +83,7 @@ class Embedder:
             try:
                 ckpt = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
                 state = ckpt.get("model_state_dict", ckpt)
+                state = _remap_openclip_enhanced_keys(state)
                 self._model.load_state_dict(state, strict=False)
                 logger.info("Loaded semantic checkpoint: %s", checkpoint_path)
             except Exception as exc:
@@ -65,14 +100,6 @@ class Embedder:
             else:
                 logger.info("No checkpoint supplied — using base pretrained weights")
 
-        # Base CLIP model — used for text query encoding only.
-        # Fine-tuned models lose zero-shot text-image alignment; base weights
-        # preserve the broad language-vision alignment from 400M training pairs.
-        self._text_model, _, _ = open_clip.create_model_and_transforms(
-            internal_name, pretrained="openai"
-        )
-        self._text_model = self._text_model.to(self.device).eval()
-        logger.info("Loaded base CLIP model for text query encoding")
 
     @property
     def model_name(self) -> str:
@@ -81,7 +108,7 @@ class Embedder:
     def embed_text(self, text: str) -> list[float]:
         tokens = self._tokenizer([text]).to(self.device)
         with torch.no_grad():
-            vec = self._text_model.encode_text(tokens)
+            vec = self._model.encode_text(tokens)
         return self._postprocess(vec)
 
     def embed_image(self, image: Image.Image) -> list[float]:
