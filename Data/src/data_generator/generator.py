@@ -23,6 +23,41 @@ from sqlalchemy.orm import sessionmaker
 
 from src.data_pipeline.db.models import FeedbackEvent, Image
 from src.data_pipeline.feedback.synthetic import generate_feedback_session
+from src.data_generator.photoprism.client import PhotoprismClient
+
+_FALLBACK_USERS = [
+    "user_alice",
+    "user_bob",
+    "user_carol",
+    "user_dave",
+    "user_eve",
+    "user_frank",
+    "user_grace",
+    "user_henry",
+    "user_iris",
+    "user_jack",
+]
+
+
+def load_users_from_photoprism() -> list[str]:
+    """Fetch usernames from PhotoPrism using admin credentials from env vars.
+
+    Falls back to _FALLBACK_USERS if the env vars are not set or the call fails.
+    """
+    photoprism_url = os.getenv("PHOTOPRISM_URL")
+    username = os.getenv("PHOTOPRISM_ADMIN_USER", os.getenv("PHOTOPRISM_USERNAME", "admin"))
+    password = os.getenv("PHOTOPRISM_ADMIN_PASSWORD", os.getenv("PHOTOPRISM_PASSWORD"))
+    if not photoprism_url or not password:
+        return _FALLBACK_USERS
+    client = PhotoprismClient(base_url=photoprism_url, username=username, password=password)
+    try:
+        client.login()
+        users = client.get_users()
+        names = [u["Name"] for u in users if u.get("Name")]
+        client.logout()
+        return names if names else _FALLBACK_USERS
+    except Exception:
+        return _FALLBACK_USERS
 
 SAMPLE_QUERIES = [
     "sunset over water",
@@ -71,6 +106,7 @@ def run_generator(
     image_ids: list[str],
     duration_seconds: int,
     rate_per_second: float,
+    users: list[str] | None = None,
 ) -> int:
     """Fire synthetic sessions until duration_seconds elapses.
 
@@ -81,6 +117,8 @@ def run_generator(
     Session = sessionmaker(bind=engine)
     db = Session()
 
+    active_users = users if users else _FALLBACK_USERS
+
     end_time = time.time() + duration_seconds
     session_count = 0
     total_events = 0
@@ -89,7 +127,7 @@ def run_generator(
     try:
         while time.time() < end_time:
             query = random.choice(SAMPLE_QUERIES)
-            user_id = f"synthetic_user_{random.randint(1, 1000)}"
+            user_id = random.choice(active_users)
             events = generate_feedback_session(user_id, query, image_ids)
 
             try:
@@ -147,4 +185,8 @@ if __name__ == "__main__":
     else:
         image_ids = load_image_ids_from_db()
         print(f"Loaded {len(image_ids)} image IDs from database.")
-    run_generator(args.service_url, image_ids, args.duration, args.rate)
+
+    users = load_users_from_photoprism()
+    print(f"Using {len(users)} user(s): {users}")
+
+    run_generator(args.service_url, image_ids, args.duration, args.rate, users=users)

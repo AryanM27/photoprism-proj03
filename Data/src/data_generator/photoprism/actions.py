@@ -106,7 +106,7 @@ def do_upload(
         logger.debug(
             "[%s] uploaded %s (token=%s)", state.user_id, aug_name, token
         )
-        image_id = register_upload(aug_bytes, aug_name)
+        image_id = register_upload(aug_bytes, aug_name, user_id=state.user_id)
         if image_id:
             state.uploads_done += 1
         else:

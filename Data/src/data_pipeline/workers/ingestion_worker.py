@@ -15,10 +15,7 @@ from src.data_pipeline.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-from src.data_pipeline.observability.celery_signals import register_signals
 from src.data_pipeline.observability.metrics import INGESTION_FILES_SEEN
-
-register_signals(worker_name="ingestion", metrics_port=8001)
 
 
 @app.task(

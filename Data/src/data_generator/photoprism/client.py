@@ -124,6 +124,13 @@ class PhotoprismClient:
         resp.raise_for_status()
         return resp.json() or []
 
+    def get_users(self) -> list[dict]:
+        url = f"{self._base_url}/api/v1/users"
+        params = {"count": 100, "offset": 0}
+        resp = self._session.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        return resp.json() or []
+
     @property
     def username(self) -> str:
         return self._username

@@ -57,6 +57,7 @@ def upload_image(event: dict, db: Session) -> dict:
     image_id = event["image_id"]
     source_dataset = event.get("source_dataset", "unknown")
     split = event["split"]
+    user_id = event.get("user_id") or None
 
     pre_uploaded_key = event.get("storage_key", "")
     if pre_uploaded_key:
@@ -87,6 +88,7 @@ def upload_image(event: dict, db: Session) -> dict:
                 source_dataset=source_dataset,
                 split=split,
                 status="pending",
+                user_id=user_id,
                 created_at=now,
                 updated_at=now,
             )

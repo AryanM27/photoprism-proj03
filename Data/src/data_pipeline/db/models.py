@@ -16,6 +16,7 @@ class Image(Base):
     embedding_status = Column(String, default="pending")  # pending | embedded | failed
     embedded_at      = Column(DateTime, nullable=True)
     model_version    = Column(String, nullable=True)      # e.g. clip-ViT-B-32
+    user_id          = Column(String, index=True, nullable=True)  # owner; null for public-corpus images
     created_at       = Column(DateTime, default=datetime.utcnow)
     updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

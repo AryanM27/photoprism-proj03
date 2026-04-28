@@ -7,7 +7,7 @@ Consumes the backfill queue. For each image:
 """
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -19,9 +19,6 @@ SERVING_API_URL = os.environ.get("SERVING_API_URL", "http://serving-api:8000")
 
 logger = logging.getLogger(__name__)
 
-from src.data_pipeline.observability.celery_signals import register_signals
-
-register_signals(worker_name="backfill", metrics_port=8004)
 
 
 def _fetch_aesthetic_score(image_uri: str) -> float | None:
@@ -105,5 +102,44 @@ def reprocess_image(self, image_id: str, model_version: str, aesthetic_score: fl
         db.rollback()
         logger.error("Backfill failed for %s: %s", image_id, exc)
         raise self.retry(exc=exc)
+    finally:
+        db.close()
+
+
+@app.task(name="src.data_pipeline.workers.backfill_worker.reconcile_backfill_queue")
+def reconcile_backfill_queue(stale_minutes: int = 10) -> dict:
+    """Re-publish queued backfill jobs that have no corresponding broker message.
+
+    Runs periodically via Celery beat. Catches the gap that occurs when
+    trigger_backfill commits DB rows but the apply_async loop is interrupted.
+    Uses the model_version from the image row (set by a completed embed_image task)
+    or falls back to EMBEDDING_MODEL env var for images not yet embedded.
+    """
+    db = SessionLocal()
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_minutes)
+        stale = (
+            db.query(ProcessingJob)
+            .filter(
+                ProcessingJob.job_type == "backfill",
+                ProcessingJob.status == "queued",
+                ProcessingJob.created_at <= cutoff,
+            )
+            .all()
+        )
+        if not stale:
+            return {"republished": 0}
+
+        fallback_model = os.environ.get("EMBEDDING_MODEL", "clip-ViT-B-32")
+        image_ids = [j.image_id for j in stale]
+        images = db.query(Image).filter(Image.image_id.in_(image_ids)).all()
+        model_by_image = {img.image_id: img.model_version or fallback_model for img in images}
+
+        for job in stale:
+            model_version = model_by_image.get(job.image_id, fallback_model)
+            reprocess_image.apply_async(args=[job.image_id, model_version])
+
+        logger.warning("reconcile_backfill_queue: re-published %d stale jobs", len(stale))
+        return {"republished": len(stale)}
     finally:
         db.close()

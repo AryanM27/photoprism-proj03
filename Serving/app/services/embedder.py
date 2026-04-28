@@ -8,6 +8,41 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+# Keys produced by OpenCLIPEnhancedSemanticModel (Training) that need remapping
+# before being loaded into a plain open_clip model at serving time.
+#
+# The training wrapper stores the CLIP backbone under "clip_model.*" AND exposes
+# two module aliases ("visual" → clip_model.visual, "text" → clip_model.transformer).
+# PyTorch state_dict records both paths. The alias "visual.*" matches open_clip's
+# "visual.*", so the image encoder loads fine — but "text.*" does NOT match
+# open_clip's "transformer.*", leaving the text encoder at base openai weights
+# while the image encoder gets fine-tuned laion2b weights. That cross-pretrain
+# mismatch makes cosine similarity collapse (<0.05 for direct matches).
+#
+# This function:
+#   1. Strips "clip_model." prefix → maps clip_model.transformer.* → transformer.*
+#      so the text encoder is also loaded from the checkpoint.
+#   2. Drops projection-head keys (image_proj.*, text_proj.*) that don't exist
+#      in the raw open_clip model.
+#   3. Drops duplicate alias keys ("visual.*", "text.*") that are already covered
+#      by the remapped "clip_model.*" keys.
+_CLIP_MODEL_PREFIX = "clip_model."
+_DROP_PREFIXES = ("image_proj.", "text_proj.", "visual.", "text.")
+
+
+def _remap_openclip_enhanced_keys(state: dict) -> dict:
+    if not any(k.startswith(_CLIP_MODEL_PREFIX) for k in state):
+        return state  # not an OpenCLIPEnhancedSemanticModel checkpoint — pass through
+    remapped = {}
+    for k, v in state.items():
+        if k.startswith(_CLIP_MODEL_PREFIX):
+            remapped[k[len(_CLIP_MODEL_PREFIX):]] = v
+        elif any(k.startswith(p) for p in _DROP_PREFIXES):
+            pass  # drop alias duplicates and projection heads
+        else:
+            remapped[k] = v
+    return remapped
+
 
 class Embedder:
     """CLIP text+image embedder backed by open_clip.
@@ -48,6 +83,7 @@ class Embedder:
             try:
                 ckpt = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
                 state = ckpt.get("model_state_dict", ckpt)
+                state = _remap_openclip_enhanced_keys(state)
                 self._model.load_state_dict(state, strict=False)
                 logger.info("Loaded semantic checkpoint: %s", checkpoint_path)
             except Exception as exc:
@@ -63,6 +99,7 @@ class Embedder:
                 )
             else:
                 logger.info("No checkpoint supplied — using base pretrained weights")
+
 
     @property
     def model_name(self) -> str:

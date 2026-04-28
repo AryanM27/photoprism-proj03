@@ -12,8 +12,16 @@ Queues:
 
 import os
 from celery import Celery
+from celery.schedules import crontab
 
 RABBITMQ_URL = os.environ["RABBITMQ_URL"]
+
+_WORKER_NAME = os.environ.get("WORKER_NAME", "")
+_METRICS_PORT = int(os.environ.get("METRICS_PORT", "0"))
+
+if _WORKER_NAME and _METRICS_PORT:
+    from src.data_pipeline.observability.celery_signals import register_signals
+    register_signals(worker_name=_WORKER_NAME, metrics_port=_METRICS_PORT)
 
 app = Celery(
     "data_pipeline",
@@ -44,5 +52,12 @@ app.conf.update(
         },
         "src.data_pipeline.workers.embedding_worker.embed_image": {"queue": "embedding"},
         "src.data_pipeline.workers.backfill_worker.reprocess_image": {"queue": "backfill"},
+        "src.data_pipeline.workers.backfill_worker.reconcile_backfill_queue": {"queue": "backfill"},
+    },
+    beat_schedule={
+        "reconcile-backfill-queue": {
+            "task": "src.data_pipeline.workers.backfill_worker.reconcile_backfill_queue",
+            "schedule": crontab(minute="*/5"),
+        },
     },
 )

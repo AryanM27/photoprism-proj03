@@ -43,18 +43,24 @@ def _s3_client():
     )
 
 
-def compute_image_id(image_bytes: bytes) -> str:
-    """MD5 of image content — identical bytes produce the same ID."""
-    return hashlib.md5(image_bytes).hexdigest()
+def compute_image_id(image_bytes: bytes, user_id: str = "") -> str:
+    """Stable image ID scoped to the uploading user.
+
+    Including user_id ensures two users uploading identical bytes get distinct
+    rows in the images table and separate Qdrant points. Public-corpus images
+    (no user_id) retain the content-only hash for backward compatibility.
+    """
+    key = image_bytes + user_id.encode() if user_id else image_bytes
+    return hashlib.md5(key).hexdigest()
 
 
-def register_upload(image_bytes: bytes, filename: str) -> str | None:
+def register_upload(image_bytes: bytes, filename: str, user_id: str = "") -> str | None:
     """Upload bytes to S3 and dispatch to the ingestion Celery queue.
 
     Returns image_id on success, None on any failure. Never raises.
     """
     try:
-        image_id = compute_image_id(image_bytes)
+        image_id = compute_image_id(image_bytes, user_id)
         storage_key = f"{S3_PREFIX}/raw/{image_id}.jpg"
 
         _s3_client().upload_fileobj(io.BytesIO(image_bytes), BUCKET, storage_key)
@@ -65,13 +71,14 @@ def register_upload(image_bytes: bytes, filename: str) -> str | None:
             "storage_key": storage_key,
             "source_dataset": "user",
             "split": "train",
+            "user_id": user_id,
         }
         _celery.send_task(
             "src.data_pipeline.workers.ingestion_worker.process_ingestion_event",
             args=[event],
             queue="ingestion",
         )
-        logger.info("Dispatched ingestion task for image %s", image_id)
+        logger.info("Dispatched ingestion task for image %s (user=%s)", image_id, user_id)
         return image_id
 
     except Exception as exc:

@@ -174,9 +174,17 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None, ts
             .all()
         )
 
+        avg_shown_ranks = dict(
+            db.query(FeedbackEvent.image_id, func.avg(FeedbackEvent.shown_rank + 1).label("avg_rank"))
+            .filter(FeedbackEvent.shown_rank.isnot(None))
+            .group_by(FeedbackEvent.image_id)
+            .all()
+        )
+
         # train split includes both train and val records
         train_records, test_records = [], []
         for image, meta in query.all():
+            avg_rank = avg_shown_ranks.get(image.image_id)
             record = {
                 "record_id":       str(uuid.uuid4()),
                 "image_id":        image.image_id,
@@ -188,6 +196,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None, ts
                 "text":            meta.text,
                 "pair_label":      1,
                 "num_clicks":      click_counts.get(image.image_id, 0),
+                "avg_shown_rank":  int(round(float(avg_rank))) if avg_rank is not None else None,
             }
             if image.split == "test":
                 test_records.append(record)
@@ -257,6 +266,13 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None, t
             .all()
         )
 
+        avg_shown_ranks = dict(
+            db.query(FeedbackEvent.image_id, func.avg(FeedbackEvent.shown_rank + 1).label("avg_rank"))
+            .filter(FeedbackEvent.shown_rank.isnot(None))
+            .group_by(FeedbackEvent.image_id)
+            .all()
+        )
+
         train_records, test_records = [], []
         for image, meta in query.all():
             raw_score = float(meta.aesthetic_score)
@@ -265,6 +281,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None, t
                     f"aesthetic_score {raw_score} for {image.image_id} is outside [0,1]; clamping."
                 )
                 raw_score = max(0.0, min(1.0, raw_score))
+            avg_rank = avg_shown_ranks.get(image.image_id)
             record = {
                 "record_id":       str(uuid.uuid4()),
                 "image_id":        image.image_id,
@@ -274,6 +291,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None, t
                 "source_dataset":  image.source_dataset,
                 "aesthetic_score": round(raw_score * _AESTHETIC_SCALE, 4),
                 "num_favourites":  fav_counts.get(image.image_id, 0),
+                "avg_shown_rank":  int(round(float(avg_rank))) if avg_rank is not None else None,
             }
             if image.split == "test":
                 test_records.append(record)
