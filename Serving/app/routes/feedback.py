@@ -18,9 +18,10 @@ class FeedbackRequest(BaseModel):
     image_id: str
     query: str = ""
     score: float = 0.0
+    user_id: str = "anonymous"
 
 
-def _insert_feedback(image_id: str, query: str, score: float, clicked: bool, favorited: bool):
+def _insert_feedback(image_id: str, query: str, score: float, clicked: bool, favorited: bool, user_id: str = "anonymous"):
     if fb._Session is None:
         raise HTTPException(status_code=503, detail="feedback DB not available")
     try:
@@ -38,7 +39,7 @@ def _insert_feedback(image_id: str, query: str, score: float, clicked: bool, fav
             """),
             {
                 "event_id": str(uuid.uuid4()),
-                "user_id": "anonymous",
+                "user_id": user_id,
                 "query_id": str(uuid.uuid4()),
                 "image_id": image_id,
                 "shown_rank": 0,
@@ -58,13 +59,13 @@ def _insert_feedback(image_id: str, query: str, score: float, clicked: bool, fav
 
 @router.post("/feedback/like")
 def like_image(req: FeedbackRequest):
-    _insert_feedback(req.image_id, req.query, req.score, clicked=False, favorited=True)
-    logger.info("Recorded like for image %s", req.image_id)
+    _insert_feedback(req.image_id, req.query, req.score, clicked=False, favorited=True, user_id=req.user_id)
+    logger.info("Recorded like for image %s (user=%s)", req.image_id, req.user_id)
     return {"liked": True, "image_id": req.image_id}
 
 
 @router.post("/feedback/click")
 def click_image(req: FeedbackRequest):
-    _insert_feedback(req.image_id, req.query, req.score, clicked=True, favorited=False)
-    logger.info("Recorded click for image %s", req.image_id)
+    _insert_feedback(req.image_id, req.query, req.score, clicked=True, favorited=False, user_id=req.user_id)
+    logger.info("Recorded click for image %s (user=%s)", req.image_id, req.user_id)
     return {"clicked": True, "image_id": req.image_id}
