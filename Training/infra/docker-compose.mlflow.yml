@@ -29,6 +29,9 @@ services:
       - mlflow
       - postgres
 
+    ports:
+      - "8080:8080"
+
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       OS_AUTH_TYPE: ${OS_AUTH_TYPE}
