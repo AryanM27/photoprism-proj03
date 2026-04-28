@@ -196,7 +196,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None, ts
                 "text":            meta.text,
                 "pair_label":      1,
                 "num_clicks":      click_counts.get(image.image_id, 0),
-                "avg_shown_rank":  round(float(avg_rank), 4) if avg_rank is not None else None,
+                "avg_shown_rank":  int(round(float(avg_rank))) if avg_rank is not None else None,
             }
             if image.split == "test":
                 test_records.append(record)
@@ -291,7 +291,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None, t
                 "source_dataset":  image.source_dataset,
                 "aesthetic_score": round(raw_score * _AESTHETIC_SCALE, 4),
                 "num_favourites":  fav_counts.get(image.image_id, 0),
-                "avg_shown_rank":  round(float(avg_rank), 4) if avg_rank is not None else None,
+                "avg_shown_rank":  int(round(float(avg_rank))) if avg_rank is not None else None,
             }
             if image.split == "test":
                 test_records.append(record)
