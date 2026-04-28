@@ -175,7 +175,7 @@ def build_semantic_manifests(version: str, source_dataset: str | None = None, ts
         )
 
         avg_shown_ranks = dict(
-            db.query(FeedbackEvent.image_id, func.avg(FeedbackEvent.shown_rank).label("avg_rank"))
+            db.query(FeedbackEvent.image_id, func.avg(FeedbackEvent.shown_rank + 1).label("avg_rank"))
             .filter(FeedbackEvent.shown_rank.isnot(None))
             .group_by(FeedbackEvent.image_id)
             .all()
@@ -267,7 +267,7 @@ def build_aesthetic_manifests(version: str, source_dataset: str | None = None, t
         )
 
         avg_shown_ranks = dict(
-            db.query(FeedbackEvent.image_id, func.avg(FeedbackEvent.shown_rank).label("avg_rank"))
+            db.query(FeedbackEvent.image_id, func.avg(FeedbackEvent.shown_rank + 1).label("avg_rank"))
             .filter(FeedbackEvent.shown_rank.isnot(None))
             .group_by(FeedbackEvent.image_id)
             .all()
