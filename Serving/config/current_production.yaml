@@ -8,7 +8,7 @@ semantic:
 aesthetic:
   model_version: aesthetic-mobilenet-v3-large-fusion-v3
   candidate_name: aesthetic_mobilenet_v3_large_fusion_real_v3
-  mae: 0.6142747640609741
-  mse: 0.6023734045028687
-  rmse: 0.7761271832005813
+  mae: 0.5404637231826782
+  mse: 0.4703245850175619
+  rmse: 0.6858021471368851
   s3_artifact_path: artifacts/aesthetic/mobilenet_v3_large_fusion_real_v1/training_summary.txt
