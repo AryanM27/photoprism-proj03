@@ -62,15 +62,15 @@ jobs:
         continue-on-error: true
         run: |
           JOB_ID="${{ steps.trigger_aesthetic.outputs.job_id }}"
-          for i in $(seq 1 180); do
+          for i in $(seq 1 360); do
             STATUS=$(curl -s "${{ secrets.TRAINING_API_URL }}/train/status/$JOB_ID" | \
               python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
-            echo "[$i/180] Aesthetic job status: $STATUS"
+            echo "[$i/360] Aesthetic job status: $STATUS"
             if [ "$STATUS" = "completed" ]; then exit 0; fi
             if [ "$STATUS" = "failed" ]; then echo "Aesthetic training failed"; exit 1; fi
             sleep 60
           done
-          echo "Timeout waiting for aesthetic training (3 hours exceeded)"
+          echo "Timeout waiting for aesthetic training (6 hours exceeded)"
           exit 1
 
       - name: Set training outcomes
